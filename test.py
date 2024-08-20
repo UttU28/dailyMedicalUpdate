@@ -21,8 +21,8 @@ mask_2021 = allSeniorPatients['Last Visited'].dt.year == 2021
 mask_before_2021 = allSeniorPatients['Last Visited'].dt.year < 2021
 mask_nan = allSeniorPatients['Last Visited'].isna()
 
-allSeniorPatients[mask_2023_2024].to_csv('allSeniorPatients_2023_2024.csv', index=False)
-allSeniorPatients[mask_2022].to_csv('allSeniorPatients_2022.csv', index=False)
-allSeniorPatients[mask_2021].to_csv('allSeniorPatients_2021.csv', index=False)
-allSeniorPatients[mask_before_2021].to_csv('allSeniorPatients_before_2021.csv', index=False)
-allSeniorPatients[mask_nan].to_csv('allSeniorPatients_nan.csv', index=False)
+allSeniorPatients[mask_2023_2024].to_csv('SeniorPatients_2023_2024.csv', index=False)
+allSeniorPatients[mask_2022].to_csv('SeniorPatients_2022.csv', index=False)
+allSeniorPatients[mask_2021].to_csv('SeniorPatients_2021.csv', index=False)
+allSeniorPatients[mask_before_2021].to_csv('SeniorPatients_before_2021.csv', index=False)
+allSeniorPatients[mask_nan].to_csv('SeniorPatientsNotVisited.csv', index=False)
