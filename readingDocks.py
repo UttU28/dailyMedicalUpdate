@@ -3,6 +3,7 @@ import os
 import json
 from docx import Document
 from time import sleep
+from writingDocks import callFromMaster
 
 def list_docx_files_in_folder(folder_path):
     docx_files = []
@@ -26,25 +27,19 @@ def sanitizeFilename(inputString):
     safeString = safeString.strip()
     return safeString
 
-def load_existing_data(file_path):
-    if os.path.exists(file_path):
-        with open(file_path, 'r') as file:
-            return json.load(file)
-    return {}
-
 def save_data(file_path, data):
     with open(file_path, 'w') as file:
         json.dump(data, file, indent=4)
 
-def extractDataFrom(fileName):
-    docx_file_path = f'ChartWatch/{fileName}.docx'
+def extractDataFrom(folder_path, fileName):
+    docx_file_path = f'{folder_path}/{fileName}.docx'
     json_file_path = 'stockData.json'
     
     dateKey = fileName.split(" ")[-1]
     monthKey = fileName.split(" ")[0]
     allLines = read_docx(docx_file_path)
     isStockFound = False
-    stockData = load_existing_data(json_file_path)
+    stockData = {}
     
     if monthKey not in stockData:
         stockData[monthKey] = {}
@@ -61,23 +56,19 @@ def extractDataFrom(fileName):
             if chartName not in stockData[monthKey][stockName]:
                 stockData[monthKey][stockName][chartName] = []
             
-            # Append the new data to the list
             stockData[monthKey][stockName][chartName].append({dateKey: allLines[i+1]})
             
             if "144" in allLines[i]:
                 isStockFound = False
 
     save_data(json_file_path, stockData)
-    # print("Data updated and saved successfully.")
-    # sleep(1)
 
-if __name__ == "__main__":
-    folder_path = 'ChartWatch'
-    allDocFiles = list_docx_files_in_folder(folder_path)
-    # allDocFiles = [f"April {i}" for i in range(1, 31)]
-    # allDocFiles = ["April 5"]
-    print(allDocFiles)
-    for fileName in allDocFiles:
-        try:
-            extractDataFrom(fileName.replace('.docx', ''))
-        except: print(f"Not here {fileName}")
+# if __name__ == "__main__":
+#     folder_path = 'ChartWatch'
+#     allDocFiles = list_docx_files_in_folder(folder_path)
+#     print(allDocFiles)
+#     for fileName in allDocFiles:
+#         try:
+#             extractDataFrom(folder_path, fileName.replace('.docx', ''))
+#         except: print(f"Not here {fileName}")
+#     callFromMaster()
