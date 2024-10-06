@@ -7,7 +7,7 @@ import os
 class DocxProcessorApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("DOCX Processor")
+        self.root.title("JC ChartWatcher")
         self.root.configure(bg="#2E2E2E")  # Dark background
         
         # Styling variables
@@ -18,8 +18,16 @@ class DocxProcessorApp:
         self.button_fg_color = "#FFFFFF"
         
         # Labels and Inputs for directories
-        self.label_input_dir = tk.Label(root, text="Input Directory (DOCX files):", fg=self.text_color, bg=self.bg_color, font=("Arial", 12))
+        self.label_input_dir = tk.Label(root, text="Welcome to ChartWatcher", fg=self.text_color, bg=self.bg_color, font=("Arial", 15))
         self.label_input_dir.pack(pady=5)
+
+        # Instruction text with wrapping
+        instruction_text = """All DOCX files must follow a consistent naming convention: they should include the same month name and have a space-separated date (e.g., "Oct 28.docx"). Ensure there are no double spaces between the month and date, and the format for the month must be uniform across all files—using "Oct" in one file and "October" in another will not be acceptable. Additionally, the input directory should contain data for only one month at a time."""
+        self.label_instructions = tk.Label(root, text=instruction_text, fg=self.text_color, bg=self.bg_color, font=("Arial", 8), wraplength=500, justify="left")
+        self.label_instructions.pack(pady=5)
+        
+        self.label_input_dir = tk.Label(root, text="Folder that has DOCX files", fg=self.text_color, bg=self.bg_color, font=("Arial", 12))
+        self.label_input_dir.pack(pady=2)
         
         self.input_dir = tk.Entry(root, width=50, bg=self.entry_bg_color, fg=self.text_color, insertbackground=self.text_color)
         self.input_dir.pack(pady=5, ipady=5)
@@ -27,8 +35,8 @@ class DocxProcessorApp:
         self.browse_input_button = tk.Button(root, text="Browse", command=self.browse_input_directory, bg=self.button_bg_color, fg=self.button_fg_color, activebackground="#357ABD", font=("Arial", 10, "bold"))
         self.browse_input_button.pack(pady=5, ipadx=10, ipady=5)
         
-        self.label_output_dir = tk.Label(root, text="Output Directory:", fg=self.text_color, bg=self.bg_color, font=("Arial", 12))
-        self.label_output_dir.pack(pady=5)
+        self.label_output_dir = tk.Label(root, text="Folder to Store Output", fg=self.text_color, bg=self.bg_color, font=("Arial", 12))
+        self.label_output_dir.pack(pady=2)
         
         self.output_dir = tk.Entry(root, width=50, bg=self.entry_bg_color, fg=self.text_color, insertbackground=self.text_color)
         self.output_dir.pack(pady=5, ipady=5)
@@ -41,7 +49,7 @@ class DocxProcessorApp:
         self.process_button.pack(pady=20, ipadx=20, ipady=10)
         
         # Log or Status display
-        self.log_text = tk.Text(root, height=10, width=60, state='disabled', bg=self.entry_bg_color, fg=self.text_color)
+        self.log_text = tk.Text(root, height=5, width=60, state='disabled', bg=self.entry_bg_color, fg=self.text_color)
         self.log_text.pack(pady=5)
     
     def browse_input_directory(self):

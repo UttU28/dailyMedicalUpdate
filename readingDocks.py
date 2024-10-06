@@ -27,6 +27,12 @@ def sanitizeFilename(inputString):
     safeString = safeString.strip()
     return safeString
 
+def load_existing_data(file_path):
+    if os.path.exists(file_path):
+        with open(file_path, 'r') as file:
+            return json.load(file)
+    return {}
+
 def save_data(file_path, data):
     with open(file_path, 'w') as file:
         json.dump(data, file, indent=4)
@@ -39,7 +45,7 @@ def extractDataFrom(folder_path, fileName):
     monthKey = fileName.split(" ")[0]
     allLines = read_docx(docx_file_path)
     isStockFound = False
-    stockData = {}
+    stockData = load_existing_data(json_file_path)
     
     if monthKey not in stockData:
         stockData[monthKey] = {}

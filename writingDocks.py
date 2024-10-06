@@ -50,7 +50,7 @@ def sortDictsByKeys(saveLocation, data):
             for scheduleType, entries in schedules.items():
                 sortedEntries = sorted(entries, key=lambda x: int(next(iter(x))))
                 schedules[scheduleType] = sortedEntries
-                createDoc(scheduleType, sortedEntries, folderName, docxDir)
+                createDoc(scheduleType, sortedEntries, month, docxDir)
 
 # Start processing
 
@@ -58,3 +58,4 @@ def callFromMaster(saveLocation):
     with open('stockData.json', 'r') as file:
         stockData = json.load(file)
     sortDictsByKeys(saveLocation, stockData)
+    os.remove('stockData.json')
