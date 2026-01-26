@@ -2,3 +2,10 @@
 *.docx
 *.doc
 *.pdf
+*.txt
+*.env
+env/
+chromeData/
+
+__pycache__/
+ogData.json

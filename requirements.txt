@@ -3,3 +3,7 @@ numpy
 pypdf
 python-docx
 colorama
+pymupdf
+flask
+flask-cors
+selenium
