@@ -13,6 +13,7 @@ from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
 from dotenv import load_dotenv
+from pages.step0 import executeStep0
 from pages.step1 import executeStep1
 from pages.step2 import executeStep2
 from pages.step3 import executeStep3
@@ -115,31 +116,44 @@ def maximizeWindow(driver):
     except:
         pass
 
-def loadAndExtractClaimData(jsonFilePath='ogData.json'):
+def loadAndExtractClaimData(jsonFilePath='sample.json'):
     """Load claim data from JSON and extract only needed fields"""
     try:
         with open(jsonFilePath, 'r', encoding='utf-8') as f:
             data = json.load(f)
         print(f"[INFO] Successfully loaded data from {jsonFilePath}")
         
-        # Extract data for Step 1
+        # Extract data for Step 1 - from patient_info (using id_number and date_of_birth)
+        patientInfo = data.get('patient_info', {})
+        idNumberObj = patientInfo.get('id_number', {})
         step1Data = {
-            'insuredId': data.get('insured_info', {}).get('id_number', ''),
-            'insuredDob': data.get('insured_info', {}).get('date_of_birth', '')
+            'insuredId': idNumberObj.get('value', '') if isinstance(idNumberObj, dict) else idNumberObj,
+            'insuredDob': patientInfo.get('date_of_birth', {}).get('formatted', '') if isinstance(patientInfo.get('date_of_birth'), dict) else patientInfo.get('date_of_birth', '')
         }
         
         # Extract data for Step 2
+        # Use service line date as provider signature date if signatures not available
+        serviceLines = data.get('service_lines', [])
+        providerSignatureDate = ''
+        if serviceLines and len(serviceLines) > 0:
+            firstServiceLine = serviceLines[0]
+            datesOfService = firstServiceLine.get('dates_of_service', {})
+            providerSignatureDate = datesOfService.get('from', {}).get('formatted', '')
+        
+        billingInfo = data.get('billing_info', {})
+        patientAccountNumberObj = billingInfo.get('patient_account_number', {})
         step2Data = {
-            'patientAccountNumber': data.get('billing_info', {}).get('patient_account_number', ''),
-            'providerSignatureDate': data.get('signatures', {}).get('provider_signature_date', ''),
-            'cliaNumber': '45D2151544'  # Default CLIA number
+            'patientAccountNumber': patientAccountNumberObj.get('value', '') if isinstance(patientAccountNumberObj, dict) else patientAccountNumberObj,
+            'providerSignatureDate': providerSignatureDate,
+            'cliaNumber': os.getenv('DEFAULT_CLIA_NUMBER', '')  # CLIA number from env
         }
         
-        # Extract data for Step 3 - diagnosis codes (only the values)
+        # Extract data for Step 3 - diagnosis codes (the actual code values like "Z00.01")
         diagnosisCodesList = []
         diagnosisCodes = data.get('diagnosis', {}).get('codes', [])
         for codeObj in diagnosisCodes:
-            codeValue = codeObj.get('value', '')
+            # In sample.json, the code is in the "code" field (e.g., "Z00.01")
+            codeValue = codeObj.get('code', '')
             if codeValue:
                 diagnosisCodesList.append(codeValue)
         
@@ -148,38 +162,43 @@ def loadAndExtractClaimData(jsonFilePath='ogData.json'):
         }
         
         # Extract data for Step 4 - service lines
-        serviceLines = data.get('service_lines', [])
         if not serviceLines or len(serviceLines) == 0:
             raise ValueError("service_lines not found or empty")
         
         # Get first service line (assuming one service line for now)
         firstServiceLine = serviceLines[0]
+        datesOfService = firstServiceLine.get('dates_of_service', {})
+        fromDate = datesOfService.get('from', {})
+        procedureCodeObj = firstServiceLine.get('procedure_code', {})
+        chargesObj = firstServiceLine.get('charges', {})
+        daysUnitsObj = firstServiceLine.get('days_units', {})
+        
         step4Data = {
-            'serviceDate': firstServiceLine.get('date_from', ''),
-            'procedureCode': firstServiceLine.get('procedure_code', ''),
-            'charges': firstServiceLine.get('charges', ''),
-            'units': firstServiceLine.get('days_units', '1')
+            'serviceDate': fromDate.get('formatted', '') if isinstance(fromDate, dict) else fromDate,
+            'procedureCode': procedureCodeObj.get('code', '') if isinstance(procedureCodeObj, dict) else procedureCodeObj,
+            'charges': chargesObj.get('formatted', '') if isinstance(chargesObj, dict) else chargesObj,
+            'units': daysUnitsObj.get('value', '1') if isinstance(daysUnitsObj, dict) else daysUnitsObj
         }
         
         # Validate Step 4 data
         if not step4Data['serviceDate']:
-            raise ValueError("date_from not found in service_lines")
+            raise ValueError("dates_of_service.from.formatted not found in service_lines")
         if not step4Data['procedureCode']:
-            raise ValueError("procedure_code not found in service_lines")
+            raise ValueError("procedure_code.code not found in service_lines")
         if not step4Data['charges']:
-            raise ValueError("charges not found in service_lines")
+            raise ValueError("charges.formatted not found in service_lines")
         
         # Validate Step 1 data
         if not step1Data['insuredId']:
-            raise ValueError("id_number not found in insured_info")
+            raise ValueError("patient_info.id_number.value not found")
         if not step1Data['insuredDob']:
-            raise ValueError("date_of_birth not found in insured_info")
+            raise ValueError("patient_info.date_of_birth.formatted not found")
         
         # Validate Step 2 data
         if not step2Data['patientAccountNumber']:
-            raise ValueError("patient_account_number not found in billing_info")
+            raise ValueError("billing_info.patient_account_number.value not found")
         if not step2Data['providerSignatureDate']:
-            raise ValueError("provider_signature_date not found in signatures")
+            raise ValueError("provider_signature_date not found (using service line date)")
         
         # Validate Step 3 data
         if not step3Data['diagnosisCodes'] or len(step3Data['diagnosisCodes']) == 0:
@@ -202,9 +221,9 @@ def main():
         maximizeWindow(driver)
         
         # Load and extract claim data
-        step1Data, step2Data, step3Data, step4Data = loadAndExtractClaimData('ogData.json')
+        step1Data, step2Data, step3Data, step4Data = loadAndExtractClaimData('sample.json')
         
-        # Execute Step 1: Open portal, find person, and click Professional Claim
+        # Execute Step 1: Navigate to portal and find person (will handle login if needed)
         executeStep1(driver, step1Data['insuredId'], step1Data['insuredDob'])
         
         # Execute Step 2: Fill General Info form

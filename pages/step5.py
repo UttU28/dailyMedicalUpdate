@@ -3,10 +3,14 @@
 Step 5: Fill Provider Details form
 """
 
+import os
 import time
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait, Select
 from selenium.webdriver.support import expected_conditions as EC
+from dotenv import load_dotenv
+
+load_dotenv()
 
 def waitForProviderDetailsFormToLoad(driver):
     """Wait for the Provider Details form to be fully loaded"""
@@ -633,31 +637,46 @@ def fillAllProviderDetails(driver, referringNPI, referringQualifier, referringLa
     return True
 
 def executeStep5(driver):
-    """Execute step 5: Fill Provider Details form with default values"""
+    """Execute step 5: Fill Provider Details form with values from env"""
     try:
-        # Default values
-        referringNPI = "1639511397"
-        referringQualifier = "DN"
-        referringLastName = "Chaudhari"
-        referringFirstName = "Harshidaben"
-        renderingNPI = "1639511397"
-        renderingTaxonomy = "207Q00000X"
-        renderingLastName = "Chaudhari"
-        renderingFirstName = "Harshidaben"
-        billingName = "Chaudhari"
-        billingNPI = "1639511397"
-        billingTaxonomy = "207Q00000X"
-        billingAddress = "2639 Cordes Dr."
-        billingCity = "Sugar Land"
-        billingState = "TX"
-        billingZip = "77479-1353"
-        # Service Facility Location - same as billing provider
-        facilityName = "Chaudhari"
-        facilityNPI = "1639511397"
-        facilityAddress = "2639 Cordes Dr."
-        facilityCity = "Sugar Land"
-        facilityState = "TX"
-        facilityZip = "77479-1353"
+        # Shared values from environment variables
+        defaultNPI = os.getenv('DEFAULT_PROVIDER_NPI', '')
+        defaultLastName = os.getenv('DEFAULT_PROVIDER_LAST_NAME', '')
+        defaultFirstName = os.getenv('DEFAULT_PROVIDER_FIRST_NAME', '')
+        defaultTaxonomy = os.getenv('DEFAULT_PROVIDER_TAXONOMY', '')
+        defaultAddress = os.getenv('DEFAULT_PROVIDER_ADDRESS', '')
+        defaultCity = os.getenv('DEFAULT_PROVIDER_CITY', '')
+        defaultState = os.getenv('DEFAULT_PROVIDER_STATE', '')
+        defaultZip = os.getenv('DEFAULT_PROVIDER_ZIP', '')
+        
+        # Referring Provider (uses shared values, qualifier is unique)
+        referringNPI = os.getenv('DEFAULT_REFERRING_PROVIDER_NPI', defaultNPI)
+        referringQualifier = os.getenv('DEFAULT_REFERRING_PROVIDER_QUALIFIER', '')
+        referringLastName = os.getenv('DEFAULT_REFERRING_PROVIDER_LAST_NAME', defaultLastName)
+        referringFirstName = os.getenv('DEFAULT_REFERRING_PROVIDER_FIRST_NAME', defaultFirstName)
+        
+        # Rendering Provider (uses shared values)
+        renderingNPI = os.getenv('DEFAULT_RENDERING_PROVIDER_NPI', defaultNPI)
+        renderingTaxonomy = os.getenv('DEFAULT_RENDERING_PROVIDER_TAXONOMY', defaultTaxonomy)
+        renderingLastName = os.getenv('DEFAULT_RENDERING_PROVIDER_LAST_NAME', defaultLastName)
+        renderingFirstName = os.getenv('DEFAULT_RENDERING_PROVIDER_FIRST_NAME', defaultFirstName)
+        
+        # Billing Provider (uses shared values)
+        billingName = os.getenv('DEFAULT_BILLING_PROVIDER_NAME', defaultLastName)
+        billingNPI = os.getenv('DEFAULT_BILLING_PROVIDER_NPI', defaultNPI)
+        billingTaxonomy = os.getenv('DEFAULT_BILLING_PROVIDER_TAXONOMY', defaultTaxonomy)
+        billingAddress = os.getenv('DEFAULT_BILLING_PROVIDER_ADDRESS', defaultAddress)
+        billingCity = os.getenv('DEFAULT_BILLING_PROVIDER_CITY', defaultCity)
+        billingState = os.getenv('DEFAULT_BILLING_PROVIDER_STATE', defaultState)
+        billingZip = os.getenv('DEFAULT_BILLING_PROVIDER_ZIP', defaultZip)
+        
+        # Service Facility Location (uses shared values, defaults to billing if not set)
+        facilityName = os.getenv('DEFAULT_FACILITY_NAME', billingName)
+        facilityNPI = os.getenv('DEFAULT_FACILITY_NPI', billingNPI)
+        facilityAddress = os.getenv('DEFAULT_FACILITY_ADDRESS', billingAddress)
+        facilityCity = os.getenv('DEFAULT_FACILITY_CITY', billingCity)
+        facilityState = os.getenv('DEFAULT_FACILITY_STATE', billingState)
+        facilityZip = os.getenv('DEFAULT_FACILITY_ZIP', billingZip)
         
         print(f"[INFO] Using Referring Provider NPI: {referringNPI}")
         print(f"[INFO] Using Referring Provider Qualifier: {referringQualifier}")

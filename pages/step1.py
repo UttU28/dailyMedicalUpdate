@@ -7,6 +7,7 @@ import time
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from pages.step0 import isLoginPage, isPasswordPage, executeStep0
 
 def clickCreateClaimButton(driver):
     """Click the Create Claim button"""
@@ -153,13 +154,34 @@ def executeStep1(driver, insuredId, insuredDob):
         claimsUrl = "https://provider.superiorhealthplan.com/careconnect/claims/viewClaimsHome"
         print(f"[INFO] Opening {claimsUrl}...")
         driver.get(claimsUrl)
-        time.sleep(2)
-        print(f"[INFO] Successfully opened: {driver.title}")
+        time.sleep(3)
         print(f"[INFO] Current URL: {driver.current_url}")
+        
+        # Check if we were redirected to login page
+        if isLoginPage(driver) or isPasswordPage(driver):
+            print("[INFO] Login page detected, handling login...")
+            executeStep0(driver)
+            # Navigate back to claims page after login
+            print(f"[INFO] Navigating back to {claimsUrl}...")
+            driver.get(claimsUrl)
+            time.sleep(3)
+            print(f"[INFO] Current URL after login: {driver.current_url}")
         
         # Click Create Claim button
         if not clickCreateClaimButton(driver):
-            raise Exception("Failed to click Create Claim button")
+            # Check again if we're on login page (might have been redirected)
+            if isLoginPage(driver) or isPasswordPage(driver):
+                print("[INFO] Redirected to login page, handling login...")
+                executeStep0(driver)
+                # Navigate back to claims page after login
+                print(f"[INFO] Navigating back to {claimsUrl}...")
+                driver.get(claimsUrl)
+                time.sleep(3)
+                # Retry clicking Create Claim button
+                if not clickCreateClaimButton(driver):
+                    raise Exception("Failed to click Create Claim button after login")
+            else:
+                raise Exception("Failed to click Create Claim button")
         
         # Fill member search form and click Find
         if not fillMemberSearchForm(driver, insuredId, insuredDob):

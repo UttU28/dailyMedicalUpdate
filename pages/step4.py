@@ -3,11 +3,15 @@
 Step 4: Fill Service Lines form
 """
 
+import os
 import time
 import re
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait, Select
 from selenium.webdriver.support import expected_conditions as EC
+from dotenv import load_dotenv
+
+load_dotenv()
 
 def waitForServiceLinesFormToLoad(driver):
     """Wait for the Service Lines form to be fully loaded"""
@@ -482,8 +486,8 @@ def executeStep4(driver, serviceDate, procedureCode, charges, units):
         if not units:
             raise ValueError("units is required")
         
-        # Default Place of Service to "11"
-        placeOfService = "11"
+        # Place of Service from env
+        placeOfService = os.getenv('DEFAULT_PLACE_OF_SERVICE', '')
         
         print(f"[INFO] Using Service Date: {serviceDate}")
         print(f"[INFO] Using Place of Service: {placeOfService} (default)")

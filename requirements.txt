@@ -7,3 +7,4 @@ pymupdf
 flask
 flask-cors
 selenium
+ollama

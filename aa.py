@@ -623,6 +623,7 @@ def extract_structured_data(pdf_path, print_raw=False):
 
 def main():
     pdf_file_path = "example.pdf"
+    pdf_file_path = "ex2.pdf"
     output_json_path = "extracted_claim_data.json"
     
     try:
