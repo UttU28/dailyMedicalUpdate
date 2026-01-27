@@ -38,6 +38,42 @@ def checkPortInUse(port):
     sock.close()
     return result == 0
 
+def closeExistingChromeSession(port):
+    """Close existing Chrome session on the given port"""
+    try:
+        import psutil
+        port = int(port)
+        for proc in psutil.process_iter(['pid', 'name', 'connections']):
+            try:
+                if proc.info['name'] and 'chrome' in proc.info['name'].lower():
+                    connections = proc.info.get('connections')
+                    if connections:
+                        for conn in connections:
+                            if conn.status == psutil.CONN_LISTEN and conn.laddr.port == port:
+                                print(f"[INFO] Closing existing Chrome process (PID: {proc.info['pid']}) on port {port}")
+                                proc.terminate()
+                                time.sleep(2)
+                                if proc.is_running():
+                                    proc.kill()
+                                return True
+            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                pass
+    except ImportError:
+        # psutil not available, try alternative method
+        try:
+            # Try to connect and close gracefully
+            import requests
+            try:
+                response = requests.get(f'http://localhost:{port}/json', timeout=1)
+                if response.status_code == 200:
+                    print(f"[INFO] Found existing Chrome session on port {port}")
+                    print(f"[WARNING] Please close existing Chrome browser manually to start with new headless setting")
+            except:
+                pass
+        except ImportError:
+            pass
+    return False
+
 def startChromeProcess(profileName='default_profile', headless=True):
     """Start Chrome as a separate process with remote debugging"""
     if not chromeAppPath:
@@ -114,19 +150,25 @@ def createChromeSession(profileName='default_profile', headless=True):
     """Create or reuse Chrome session with a profile"""
     port = int(scrapingPort)
     
+    # Check if port is in use and close existing session to ensure correct headless mode
     if checkPortInUse(port):
-        print(f"[INFO] Reusing existing Chrome session on port {port}")
-        chromeOptions = Options()
-        chromeOptions.add_experimental_option("debuggerAddress", f"localhost:{port}")
-        chromeOptions.add_argument("--disable-notifications")
-        # Note: If reusing existing session, it will use whatever mode it was started in
+        print(f"[INFO] Existing Chrome session detected on port {port}")
+        print(f"[INFO] Closing existing session to start with correct headless mode...")
+        closeExistingChromeSession(port)
+        time.sleep(2)  # Wait for port to be released
+    
+    # Start fresh session to match the current headless setting
+    print(f"[INFO] Starting new Chrome session on port {port}")
+    if headless:
+        print(f"[INFO] Mode: HEADLESS (browser runs in background)")
     else:
-        print(f"[INFO] Starting new Chrome session on port {port}")
-        startChromeProcess(profileName, headless=headless)
-        
-        chromeOptions = Options()
-        chromeOptions.add_experimental_option("debuggerAddress", f"localhost:{port}")
-        chromeOptions.add_argument("--disable-notifications")
+        print(f"[INFO] Mode: VISIBLE (browser window will be shown)")
+    
+    startChromeProcess(profileName, headless=headless)
+    
+    chromeOptions = Options()
+    chromeOptions.add_experimental_option("debuggerAddress", f"localhost:{port}")
+    chromeOptions.add_argument("--disable-notifications")
     
     driver = createChromeDriver(chromeOptions, headless=headless)
     print(f"[INFO] Chrome session created successfully")

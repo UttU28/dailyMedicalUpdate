@@ -18,16 +18,30 @@ except ImportError:
 class TextRedirector:
     def __init__(self, textWidget):
         self.textWidget = textWidget
+        self.buffer = ""
     
     def write(self, s):
-        if s and s.strip():
-            self.textWidget.insert(tk.END, s)
-            self.textWidget.see(tk.END)
-            self.textWidget.update_idletasks()
+        if s:
+            # Add to buffer
+            self.buffer += s
+            
+            # Process complete lines (ending with newline)
+            while '\n' in self.buffer:
+                line, self.buffer = self.buffer.split('\n', 1)
+                if line.strip():  # Only add non-empty lines
+                    self.textWidget.insert(tk.END, line.strip() + '\n')
+                    self.textWidget.see(tk.END)
+                    self.textWidget.update_idletasks()
+        
         return len(s) if s else 0
     
     def flush(self):
-        pass
+        # Flush any remaining buffer content
+        if self.buffer.strip():
+            self.textWidget.insert(tk.END, self.buffer.strip() + '\n')
+            self.textWidget.see(tk.END)
+            self.textWidget.update_idletasks()
+            self.buffer = ""
     
     def isatty(self):
         return False
@@ -40,7 +54,7 @@ class ClaimProcessorUI:
         self.root.minsize(800, 600)
         
         self.selectedFiles = []
-        self.headlessMode = tk.BooleanVar(value=True)  # Default to headless
+        self.headlessMode = tk.BooleanVar(value=False)  # Default to visible (unchecked)
         self.originalStdout = sys.stdout
         self.originalStderr = sys.stderr
         
