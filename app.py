@@ -9,10 +9,13 @@ import json
 import subprocess
 import time
 import socket
+import argparse
+from datetime import datetime
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
 from dotenv import load_dotenv
+from extract import extractClaimData
 from pages.step0 import executeStep0
 from pages.step1 import executeStep1
 from pages.step2 import executeStep2
@@ -35,7 +38,7 @@ def checkPortInUse(port):
     sock.close()
     return result == 0
 
-def startChromeProcess(profileName='default_profile'):
+def startChromeProcess(profileName='default_profile', headless=True):
     """Start Chrome as a separate process with remote debugging"""
     if not chromeAppPath:
         raise ValueError("CHROME_APP_PATH environment variable is not set")
@@ -56,7 +59,7 @@ def startChromeProcess(profileName='default_profile'):
 
     userDataDir = os.path.abspath(userDataDir)
     
-    chromeProcess = subprocess.Popen([
+    chromeArgs = [
         chromeAppPath,
         f'--remote-debugging-port={scrapingPort}',
         f'--user-data-dir={userDataDir}',
@@ -64,14 +67,34 @@ def startChromeProcess(profileName='default_profile'):
         '--disable-notifications',
         '--no-sandbox',
         '--disable-dev-shm-usage'
-    ])
+    ]
+    
+    # Add headless options
+    if headless:
+        chromeArgs.extend([
+            '--headless=new',  # Use new headless mode (Chrome 109+)
+            '--disable-gpu',
+            '--window-size=1920,1080'
+        ])
+        print(f"[INFO] Starting Chrome in HEADLESS mode")
+    else:
+        print(f"[INFO] Starting Chrome in VISIBLE mode")
+    
+    chromeProcess = subprocess.Popen(chromeArgs)
     
     time.sleep(3)
     return chromeProcess
 
-def createChromeDriver(options):
+def createChromeDriver(options, headless=True):
     """Create Chrome WebDriver instance"""
     try:
+        # Add headless options to WebDriver options
+        if headless:
+            options.add_argument('--headless=new')
+            options.add_argument('--disable-gpu')
+            options.add_argument('--window-size=1920,1080')
+            print(f"[INFO] WebDriver configured for HEADLESS mode")
+        
         if chromeDriverPath:
             service = Service(executable_path=chromeDriverPath)
             driver = webdriver.Chrome(service=service, options=options)
@@ -87,7 +110,7 @@ def createChromeDriver(options):
         print(f"[ERROR] Failed to create Chrome driver: {e}")
         raise
 
-def createChromeSession(profileName='default_profile'):
+def createChromeSession(profileName='default_profile', headless=True):
     """Create or reuse Chrome session with a profile"""
     port = int(scrapingPort)
     
@@ -96,15 +119,16 @@ def createChromeSession(profileName='default_profile'):
         chromeOptions = Options()
         chromeOptions.add_experimental_option("debuggerAddress", f"localhost:{port}")
         chromeOptions.add_argument("--disable-notifications")
+        # Note: If reusing existing session, it will use whatever mode it was started in
     else:
         print(f"[INFO] Starting new Chrome session on port {port}")
-        startChromeProcess(profileName)
+        startChromeProcess(profileName, headless=headless)
         
         chromeOptions = Options()
         chromeOptions.add_experimental_option("debuggerAddress", f"localhost:{port}")
         chromeOptions.add_argument("--disable-notifications")
     
-    driver = createChromeDriver(chromeOptions)
+    driver = createChromeDriver(chromeOptions, headless=headless)
     print(f"[INFO] Chrome session created successfully")
     return driver
 
@@ -115,6 +139,84 @@ def maximizeWindow(driver):
         time.sleep(1)
     except:
         pass
+
+def convertExtractedDataToStepFormat(extractedData):
+    """Convert extracted JSON format to step data format"""
+    try:
+        # Step 1: insuredId and insuredDob
+        step1Data = {
+            'insuredId': extractedData.get('id', ''),
+            'insuredDob': extractedData.get('dob', '')
+        }
+        
+        # Step 2: patientAccountNumber, providerSignatureDate, cliaNumber
+        signatureDate = extractedData.get('signatureDate', '')
+        providerSignatureDate = signatureDate if signatureDate else ''
+        
+        step2Data = {
+            'patientAccountNumber': extractedData.get('account', ''),
+            'providerSignatureDate': providerSignatureDate,
+            'cliaNumber': os.getenv('DEFAULT_CLIA_NUMBER', '')
+        }
+        
+        # Step 3: diagnosis codes
+        diagnosisCodesList = extractedData.get('diagnosis_codes', [])
+        step3Data = {
+            'diagnosisCodes': diagnosisCodesList
+        }
+        
+        # Step 4: service lines
+        step4DataList = []
+        procedures = extractedData.get('procedures', [])
+        signatureDate = extractedData.get('signatureDate', '')
+        
+        for proc in procedures:
+            formattedDate = signatureDate if signatureDate else ''
+            
+            diagnosisPointer = proc.get('diagnosisPointer', '')
+            diagnosisCodesForServiceLine = []
+            if diagnosisPointer:
+                diagnosisCodes = extractedData.get('diagnosis_codes', [])
+                pointerMap = {'A': 0, 'B': 1, 'C': 2, 'D': 3, 'E': 4, 'F': 5, 'G': 6, 'H': 7, 'I': 8, 'J': 9, 'K': 10, 'L': 11}
+                for char in diagnosisPointer:
+                    idx = pointerMap.get(char)
+                    if idx is not None and idx < len(diagnosisCodes):
+                        diagnosisCodesForServiceLine.append(diagnosisCodes[idx])
+            
+            charges = proc.get('charges', 0)
+            chargesFormatted = f"{charges:.2f}" if charges else "0.00"
+            
+            serviceLineData = {
+                'serviceDate': formattedDate,
+                'procedureCode': proc.get('code', ''),
+                'charges': chargesFormatted,
+                'units': '1',
+                'modifier': proc.get('modifier', ''),
+                'diagnosisCodes': diagnosisCodesForServiceLine
+            }
+            
+            step4DataList.append(serviceLineData)
+        
+        step4Data = {
+            'serviceLines': step4DataList
+        }
+        
+        # Validate data
+        if not step1Data['insuredId']:
+            raise ValueError("id not found in extracted data")
+        if not step1Data['insuredDob']:
+            raise ValueError("dob not found in extracted data")
+        if not step2Data['patientAccountNumber']:
+            raise ValueError("account not found in extracted data")
+        if not step3Data['diagnosisCodes'] or len(step3Data['diagnosisCodes']) == 0:
+            raise ValueError("diagnosis_codes not found or empty in extracted data")
+        if not step4Data['serviceLines'] or len(step4Data['serviceLines']) == 0:
+            raise ValueError("procedures not found or empty in extracted data")
+        
+        return step1Data, step2Data, step3Data, step4Data
+    except Exception as e:
+        print(f"[ERROR] Failed to convert extracted data: {e}")
+        raise
 
 def loadAndExtractClaimData(jsonFilePath='sample.json'):
     """Load claim data from JSON and extract only needed fields"""
@@ -155,38 +257,78 @@ def loadAndExtractClaimData(jsonFilePath='sample.json'):
             # In sample.json, the code is in the "code" field (e.g., "Z00.01")
             codeValue = codeObj.get('code', '')
             if codeValue:
-                diagnosisCodesList.append(codeValue)
+                # Remove trailing X characters (e.g., "T16.2XXX" -> "T16.2")
+                codeValue = codeValue.rstrip('X')
+                if codeValue:  # Only add if code is not empty after stripping
+                    diagnosisCodesList.append(codeValue)
         
         step3Data = {
             'diagnosisCodes': diagnosisCodesList
         }
         
-        # Extract data for Step 4 - service lines
+        # Extract data for Step 4 - service lines (all service lines)
         if not serviceLines or len(serviceLines) == 0:
             raise ValueError("service_lines not found or empty")
         
-        # Get first service line (assuming one service line for now)
-        firstServiceLine = serviceLines[0]
-        datesOfService = firstServiceLine.get('dates_of_service', {})
-        fromDate = datesOfService.get('from', {})
-        procedureCodeObj = firstServiceLine.get('procedure_code', {})
-        chargesObj = firstServiceLine.get('charges', {})
-        daysUnitsObj = firstServiceLine.get('days_units', {})
+        # Process all service lines
+        step4DataList = []
+        for serviceLine in serviceLines:
+            datesOfService = serviceLine.get('dates_of_service', {})
+            fromDate = datesOfService.get('from', {})
+            procedureCodeObj = serviceLine.get('procedure_code', {})
+            chargesObj = serviceLine.get('charges', {})
+            daysUnitsObj = serviceLine.get('days_units', {})
+            diagnosisPointerObj = serviceLine.get('diagnosis_pointer', {})
+            
+            # Extract modifier if it exists
+            modifier = ''
+            if isinstance(procedureCodeObj, dict):
+                modifier = procedureCodeObj.get('modifier', '')
+            elif isinstance(procedureCodeObj, str):
+                modifier = ''
+            
+            # Extract diagnosis pointers (e.g., ["A", "B", "C", "D"])
+            diagnosisPointers = []
+            if isinstance(diagnosisPointerObj, dict):
+                diagnosisPointers = diagnosisPointerObj.get('pointers', [])
+            elif isinstance(diagnosisPointerObj, list):
+                diagnosisPointers = diagnosisPointerObj
+            
+            # Get the diagnosis codes that match the pointers
+            diagnosisCodesForServiceLine = []
+            if diagnosisPointers:
+                for codeObj in diagnosisCodes:
+                    pointer = codeObj.get('pointer', '')
+                    if pointer in diagnosisPointers:
+                        codeValue = codeObj.get('code', '')
+                        if codeValue:
+                            # Remove trailing X characters
+                            codeValue = codeValue.rstrip('X')
+                            if codeValue:
+                                diagnosisCodesForServiceLine.append(codeValue)
+            
+            serviceLineData = {
+                'serviceDate': fromDate.get('formatted', '') if isinstance(fromDate, dict) else fromDate,
+                'procedureCode': procedureCodeObj.get('code', '') if isinstance(procedureCodeObj, dict) else procedureCodeObj,
+                'charges': chargesObj.get('formatted', '') if isinstance(chargesObj, dict) else chargesObj,
+                'units': daysUnitsObj.get('value', '1') if isinstance(daysUnitsObj, dict) else daysUnitsObj,
+                'modifier': modifier,
+                'diagnosisCodes': diagnosisCodesForServiceLine  # Only codes for this service line
+            }
+            
+            # Validate service line data
+            if not serviceLineData['serviceDate']:
+                raise ValueError(f"dates_of_service.from.formatted not found in service_lines[{len(step4DataList)}]")
+            if not serviceLineData['procedureCode']:
+                raise ValueError(f"procedure_code.code not found in service_lines[{len(step4DataList)}]")
+            if not serviceLineData['charges']:
+                raise ValueError(f"charges.formatted not found in service_lines[{len(step4DataList)}]")
+            
+            step4DataList.append(serviceLineData)
         
         step4Data = {
-            'serviceDate': fromDate.get('formatted', '') if isinstance(fromDate, dict) else fromDate,
-            'procedureCode': procedureCodeObj.get('code', '') if isinstance(procedureCodeObj, dict) else procedureCodeObj,
-            'charges': chargesObj.get('formatted', '') if isinstance(chargesObj, dict) else chargesObj,
-            'units': daysUnitsObj.get('value', '1') if isinstance(daysUnitsObj, dict) else daysUnitsObj
+            'serviceLines': step4DataList
         }
-        
-        # Validate Step 4 data
-        if not step4Data['serviceDate']:
-            raise ValueError("dates_of_service.from.formatted not found in service_lines")
-        if not step4Data['procedureCode']:
-            raise ValueError("procedure_code.code not found in service_lines")
-        if not step4Data['charges']:
-            raise ValueError("charges.formatted not found in service_lines")
         
         # Validate Step 1 data
         if not step1Data['insuredId']:
@@ -210,37 +352,95 @@ def loadAndExtractClaimData(jsonFilePath='sample.json'):
         raise
 
 
-def main():
-    """Main function"""
-    driver = None
+def processSingleFile(driver, filename):
+    """Process a single claim file through all steps"""
     try:
-        # Create Chrome session
-        profileName = 'uttu'
-        driver = createChromeSession(profileName)
+        # Extract data from text file
+        print(f"\n{'='*60}")
+        print(f"[INFO] Processing file: {filename}")
+        print(f"{'='*60}")
+        jsonOutput = extractClaimData(filename)
+        if not jsonOutput:
+            raise ValueError(f"Failed to extract data from {filename}")
         
-        maximizeWindow(driver)
+        extractedData = json.loads(jsonOutput)
+        print(f"[INFO] Successfully extracted data from {filename}")
+        print(f"[INFO] Signature Date: {extractedData.get('signatureDate', 'N/A')}")
+        print(f"[INFO] Procedures: {len(extractedData.get('procedures', []))}")
         
-        # Load and extract claim data
-        step1Data, step2Data, step3Data, step4Data = loadAndExtractClaimData('sample.json')
+        # Convert extracted data to step format
+        step1Data, step2Data, step3Data, step4Data = convertExtractedDataToStepFormat(extractedData)
+        
+        print(f"[INFO] Step 2 - Provider Signature Date: {step2Data['providerSignatureDate']}")
+        if step4Data.get('serviceLines'):
+            print(f"[INFO] Step 4 - First Service Line Date: {step4Data['serviceLines'][0]['serviceDate']}")
         
         # Execute Step 1: Navigate to portal and find person (will handle login if needed)
+        print(f"[INFO] Executing Step 1 for {filename}")
         executeStep1(driver, step1Data['insuredId'], step1Data['insuredDob'])
         
         # Execute Step 2: Fill General Info form
+        print(f"[INFO] Executing Step 2 for {filename}")
         executeStep2(driver, step2Data['patientAccountNumber'], step2Data['providerSignatureDate'], step2Data['cliaNumber'])
         
         # Execute Step 3: Add Diagnosis Codes
+        print(f"[INFO] Executing Step 3 for {filename}")
         executeStep3(driver, step3Data['diagnosisCodes'])
         
-        # Execute Step 4: Fill Service Lines
-        executeStep4(driver, step4Data['serviceDate'], step4Data['procedureCode'], 
-                    step4Data['charges'], step4Data['units'])
+        # Execute Step 4: Fill Service Lines (all service lines)
+        print(f"[INFO] Executing Step 4 for {filename}")
+        executeStep4(driver, step4Data['serviceLines'])
         
         # Execute Step 5: Fill Provider Details
+        print(f"[INFO] Executing Step 5 for {filename}")
         executeStep5(driver)
         
         # Execute Step 6: Handle Attachments (just click Next)
+        print(f"[INFO] Executing Step 6 for {filename}")
         executeStep6(driver)
+        
+        print(f"[INFO] Successfully completed processing for {filename}")
+        return True
+        
+    except Exception as e:
+        print(f"[ERROR] Error processing {filename}: {e}")
+        return False
+
+def main():
+    """Main function"""
+    parser = argparse.ArgumentParser(description='Extract and process claim data from text file(s)')
+    parser.add_argument('filenames', nargs='+', help='Path(s) to the claim text file(s) to process')
+    args = parser.parse_args()
+    
+    driver = None
+    try:
+        # Create Chrome session (once for all files)
+        profileName = 'uttu'
+        headlessMode = True  # Set to False to see browser window
+        print(f"[INFO] Creating Chrome session...")
+        print(f"[INFO] Headless mode: {headlessMode}")
+        driver = createChromeSession(profileName, headless=headlessMode)
+        if not headlessMode:
+            maximizeWindow(driver)
+        
+        # Process each file sequentially
+        totalFiles = len(args.filenames)
+        successful = 0
+        failed = 0
+        
+        for idx, filename in enumerate(args.filenames, 1):
+            print(f"\n[INFO] Processing file {idx} of {totalFiles}: {filename}")
+            if processSingleFile(driver, filename):
+                successful += 1
+            else:
+                failed += 1
+                print(f"[WARNING] Failed to process {filename}, continuing with next file...")
+        
+        print(f"\n{'='*60}")
+        print(f"[INFO] Processing complete!")
+        print(f"[INFO] Successful: {successful}/{totalFiles}")
+        print(f"[INFO] Failed: {failed}/{totalFiles}")
+        print(f"{'='*60}")
         
         print("\n[INFO] Browser will stay open. Press Ctrl+C to exit script (browser stays open)...")
         try:

@@ -25,7 +25,7 @@ def waitForAttachmentsFormToLoad(driver):
         )
         
         # Wait a bit more for JavaScript to finish rendering
-        time.sleep(2)
+        time.sleep(0.5)
         print("[INFO] Attachments form is ready")
         return True
     except Exception as e:
@@ -42,11 +42,11 @@ def clickNextButton(driver):
         
         # Scroll into view
         driver.execute_script("arguments[0].scrollIntoView(true);", nextButton)
-        time.sleep(1)
+        time.sleep(0.5)
         
         nextButton.click()
         print("[INFO] Clicked Next button")
-        time.sleep(3)
+        time.sleep(0.5)
         return True
     except Exception as e:
         print(f"[ERROR] Failed to click Next button: {e}")
@@ -77,7 +77,7 @@ def executeStep6(driver):
             if not waitForAttachmentsFormToLoad(driver):
                 if retryCount < maxRetries:
                     print("[WARNING] Form did not load, retrying...")
-                    time.sleep(2)
+                    time.sleep(0.5)
                     continue
                 else:
                     raise Exception("Attachments form did not load properly after retries")
@@ -86,13 +86,13 @@ def executeStep6(driver):
             if not clickNextButton(driver):
                 if retryCount < maxRetries:
                     print("[WARNING] Failed to click Next button, retrying...")
-                    time.sleep(2)
+                    time.sleep(0.5)
                     continue
                 else:
                     raise Exception("Failed to click Next button after retries")
             
             # Refetch page data after navigation
-            time.sleep(2)
+            time.sleep(0.5)
             
             # Check if we successfully moved to next page
             if not isOnAttachmentsPage(driver):
@@ -103,7 +103,7 @@ def executeStep6(driver):
                 # Still on Attachments page, need to retry
                 if retryCount < maxRetries:
                     print("[WARNING] Still on Attachments page, retrying...")
-                    time.sleep(2)
+                    time.sleep(0.5)
                     continue
                 else:
                     raise Exception("Still on Attachments page after all retries")

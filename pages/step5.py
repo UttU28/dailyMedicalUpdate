@@ -29,7 +29,7 @@ def waitForProviderDetailsFormToLoad(driver):
         )
         
         # Wait a bit more for JavaScript to finish rendering
-        time.sleep(2)
+        time.sleep(0.5)
         print("[INFO] Provider Details form is ready")
         return True
     except Exception as e:
@@ -342,11 +342,11 @@ def clickNextButton(driver):
         
         # Scroll into view
         driver.execute_script("arguments[0].scrollIntoView(true);", nextButton)
-        time.sleep(1)
+        time.sleep(0.5)
         
         nextButton.click()
         print("[INFO] Clicked Next button")
-        time.sleep(3)
+        time.sleep(0.5)
         return True
     except Exception as e:
         print(f"[ERROR] Failed to click Next button: {e}")
@@ -573,61 +573,41 @@ def fillAllProviderDetails(driver, referringNPI, referringQualifier, referringLa
     if not fillReferringProviderNPI(driver, referringNPI):
         return False
     
-    time.sleep(0.3)
-    
     # Select Referring Provider Qualifier
     if not fillReferringProviderQualifier(driver, referringQualifier):
         return False
-    
-    time.sleep(0.3)
     
     # Fill Referring Provider Name
     if not fillReferringProviderName(driver, referringLastName, referringFirstName):
         return False
     
-    time.sleep(0.3)
-    
     # Fill Rendering Provider NPI
     if not fillRenderingProviderNPI(driver, renderingNPI):
         return False
-    
-    time.sleep(0.3)
     
     # Fill Rendering Provider Taxonomy
     if not fillRenderingProviderTaxonomy(driver, renderingTaxonomy):
         return False
     
-    time.sleep(0.3)
-    
     # Fill Rendering Provider Name
     if not fillRenderingProviderName(driver, renderingLastName, renderingFirstName):
         return False
-    
-    time.sleep(0.3)
     
     # Fill Billing Provider Name
     if not fillBillingProviderName(driver, billingName):
         return False
     
-    time.sleep(0.3)
-    
     # Fill Billing Provider NPI
     if not fillBillingProviderNPI(driver, billingNPI):
         return False
-    
-    time.sleep(0.3)
     
     # Fill Billing Provider Taxonomy
     if not fillBillingProviderTaxonomy(driver, billingTaxonomy):
         return False
     
-    time.sleep(0.3)
-    
     # Fill Billing Provider Address
     if not fillBillingProviderAddress(driver, billingAddress, billingCity, billingState, billingZip):
         return False
-    
-    time.sleep(0.3)
     
     # Fill Service Facility Location
     if not fillServiceFacilityLocation(driver, facilityName, facilityNPI, facilityAddress, 
@@ -703,7 +683,7 @@ def executeStep5(driver):
             if not waitForProviderDetailsFormToLoad(driver):
                 if retryCount < maxRetries:
                     print("[WARNING] Form did not load, retrying...")
-                    time.sleep(2)
+                    time.sleep(0.5)
                     continue
                 else:
                     raise Exception("Provider Details form did not load properly after retries")
@@ -717,14 +697,12 @@ def executeStep5(driver):
                                          facilityNPI, facilityAddress, facilityCity, facilityState, facilityZip):
                 if retryCount < maxRetries:
                     print("[WARNING] Failed to fill form, retrying...")
-                    time.sleep(2)
+                    time.sleep(0.5)
                     continue
                 else:
                     raise Exception("Failed to fill form after retries")
             
             # Wait for fields to be processed
-            time.sleep(2)
-            
             # Validate all fields are filled correctly
             isValid, validationErrors = validateProviderDetails(driver, referringNPI, referringQualifier, 
                                                                referringLastName, referringFirstName,
@@ -738,24 +716,22 @@ def executeStep5(driver):
             if not isValid:
                 if retryCount < maxRetries:
                     print(f"[WARNING] Validation failed with {len(validationErrors)} error(s), retrying...")
-                    time.sleep(2)
+                    time.sleep(0.5)
                     continue
                 else:
                     raise Exception(f"Validation failed after retries: {validationErrors}")
-            
-            time.sleep(2)
             
             # Click Next button
             if not clickNextButton(driver):
                 if retryCount < maxRetries:
                     print("[WARNING] Failed to click Next button, retrying...")
-                    time.sleep(2)
+                    time.sleep(0.5)
                     continue
                 else:
                     raise Exception("Failed to click Next button after retries")
             
             # Wait for page to potentially change
-            time.sleep(3)
+            time.sleep(0.5)
             
             # Check if we successfully moved to next page
             if not isOnProviderDetailsPage(driver):
@@ -766,7 +742,7 @@ def executeStep5(driver):
                 # Still on Provider Details page, need to retry
                 if retryCount < maxRetries:
                     print("[WARNING] Still on Provider Details page, form may not have submitted. Retrying...")
-                    time.sleep(2)
+                    time.sleep(0.5)
                     continue
                 else:
                     raise Exception("Still on Provider Details page after all retries")

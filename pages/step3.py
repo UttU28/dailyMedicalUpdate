@@ -30,7 +30,7 @@ def waitForDiagnosisFormToLoad(driver):
         )
         
         # Wait a bit more for JavaScript to finish rendering
-        time.sleep(2)
+        time.sleep(0.5)
         print("[INFO] Diagnosis Codes form is ready")
         return True
     except Exception as e:
@@ -50,9 +50,6 @@ def addDiagnosisCode(driver, codeValue):
         codeInput.send_keys(codeValue)
         print(f"[INFO] Entered diagnosis code: {codeValue}")
         
-        # Wait a moment before clicking Add
-        time.sleep(1)
-        
         # Find and click the Add button
         addButton = wait.until(
             EC.element_to_be_clickable((By.CSS_SELECTOR, "button[name='_eventId_addWebProfIcdCode']"))
@@ -67,8 +64,7 @@ def addDiagnosisCode(driver, codeValue):
         print(f"[INFO] Clicked Add button for code: {codeValue}")
         
         # Wait for page to reload (soft reload with JS)
-        # The page will reload after adding the code, so we need to wait for the form to be ready again
-        time.sleep(2)
+        time.sleep(0.5)
         
         # Wait for the form to reload - wait for input field to be present and enabled again
         try:
@@ -87,7 +83,7 @@ def addDiagnosisCode(driver, codeValue):
                 print(f"[INFO] Page reloaded after adding code: {codeValue}")
             except:
                 # Give it more time and continue
-                time.sleep(2)
+                time.sleep(0.5)
                 print(f"[INFO] Waiting for page reload after adding code: {codeValue}")
         
         return True
@@ -195,13 +191,14 @@ def addAllDiagnosisCodes(driver, diagnosisCodes):
             # For subsequent codes, wait for form to reload
             if not waitForDiagnosisFormToLoad(driver):
                 print(f"[WARNING] Form reload check failed, continuing anyway...")
+                time.sleep(0.5)
         
         # Add the diagnosis code
         if not addDiagnosisCode(driver, codeValue):
             return False
         
         # Wait a bit more for the page to stabilize
-        time.sleep(1)
+        time.sleep(0.5)
     
     return True
 
@@ -224,7 +221,7 @@ def executeStep3(driver, diagnosisCodes):
             if not waitForDiagnosisFormToLoad(driver):
                 if retryCount < maxRetries:
                     print("[WARNING] Form did not load, retrying...")
-                    time.sleep(2)
+                    time.sleep(0.5)
                     continue
                 else:
                     raise Exception("Diagnosis Codes form did not load properly after retries")
@@ -233,7 +230,7 @@ def executeStep3(driver, diagnosisCodes):
             if not addAllDiagnosisCodes(driver, diagnosisCodes):
                 if retryCount < maxRetries:
                     print("[WARNING] Failed to add all diagnosis codes, retrying...")
-                    time.sleep(2)
+                    time.sleep(0.5)
                     continue
                 else:
                     raise Exception("Failed to add all diagnosis codes after retries")
@@ -260,13 +257,13 @@ def executeStep3(driver, diagnosisCodes):
             if not clickNextButton(driver):
                 if retryCount < maxRetries:
                     print("[WARNING] Failed to click Next button, retrying...")
-                    time.sleep(2)
+                    time.sleep(0.5)
                     continue
                 else:
                     raise Exception("Failed to click Next button after retries")
             
             # Wait for page to potentially change
-            time.sleep(3)
+            time.sleep(0.5)
             
             # Check if we successfully moved to next page
             if not isOnDiagnosisCodesPage(driver):
@@ -277,7 +274,7 @@ def executeStep3(driver, diagnosisCodes):
                 # Still on Diagnosis Codes page, need to retry
                 if retryCount < maxRetries:
                     print("[WARNING] Still on Diagnosis Codes page, form may not have submitted. Retrying...")
-                    time.sleep(2)
+                    time.sleep(0.5)
                     continue
                 else:
                     raise Exception("Still on Diagnosis Codes page after all retries")
@@ -299,11 +296,11 @@ def clickNextButton(driver):
         
         # Scroll into view
         driver.execute_script("arguments[0].scrollIntoView(true);", nextButton)
-        time.sleep(1)
+        time.sleep(0.5)
         
         nextButton.click()
         print("[INFO] Clicked Next button")
-        time.sleep(3)
+        time.sleep(0.5)
         return True
     except Exception as e:
         print(f"[ERROR] Failed to click Next button: {e}")

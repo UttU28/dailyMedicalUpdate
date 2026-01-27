@@ -1,232 +1,335 @@
-#!/usr/bin/env python3
-"""
-Test script for extracting CMS-1500 form data from PDFs using Ollama Vision Models
-Saves raw output to .txt file (no JSON parsing)
-"""
-
+import tkinter as tk
+from tkinter import ttk, filedialog
+import sv_ttk
+from extract import extractClaimData
 import json
-import pymupdf
-import ollama
-from datetime import datetime
-from pathlib import Path
+import threading
+import sys
+import io
+import os
+try:
+    from tkinterdnd2 import DND_FILES, TkinterDnD
+    DND_AVAILABLE = True
+except ImportError:
+    DND_AVAILABLE = False
+    TkinterDnD = tk.Tk
 
-# Load schema and sample for prompt reference
-SCHEMA_PATH = "claim_data_schema.json"
-SAMPLE_PATH = "sample2.json"  # Use sample2.json which has multiple service lines
+class TextRedirector:
+    def __init__(self, textWidget):
+        self.textWidget = textWidget
+    
+    def write(self, s):
+        if s and s.strip():
+            self.textWidget.insert(tk.END, s)
+            self.textWidget.see(tk.END)
+            self.textWidget.update_idletasks()
+        return len(s) if s else 0
+    
+    def flush(self):
+        pass
+    
+    def isatty(self):
+        return False
 
-def load_schema_and_sample():
-    """Load schema and sample JSON for prompt context"""
-    with open(SCHEMA_PATH, 'r', encoding='utf-8') as f:
-        schema = json.load(f)
+class ClaimProcessorUI:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Medical Claim Processor")
+        self.root.geometry("1000x700")
+        self.root.minsize(800, 600)
+        
+        self.selectedFiles = []
+        self.headlessMode = tk.BooleanVar(value=True)  # Default to headless
+        self.originalStdout = sys.stdout
+        self.originalStderr = sys.stderr
+        
+        sv_ttk.set_theme("dark")
+        
+        self.createWidgets()
+        self.setupDragAndDrop()
+        self.setupLogRedirect()
+        
+    def createWidgets(self):
+        mainFrame = ttk.Frame(self.root, padding="15")
+        mainFrame.pack(fill=tk.BOTH, expand=True)
+        
+        headerFrame = ttk.Frame(mainFrame)
+        headerFrame.pack(fill=tk.X, pady=(0, 20))
+        
+        titleLabel = ttk.Label(headerFrame, text="Medical Claim Processor", font=("Segoe UI", 20, "bold"))
+        titleLabel.pack()
+        
+        subtitleLabel = ttk.Label(headerFrame, text="Extract and process medical claim data", font=("Segoe UI", 10))
+        subtitleLabel.pack(pady=(5, 0))
+        
+        fileSelectionFrame = ttk.LabelFrame(mainFrame, text="File Selection", padding="15")
+        fileSelectionFrame.pack(fill=tk.X, pady=(0, 15))
+        
+        buttonFrame = ttk.Frame(fileSelectionFrame)
+        buttonFrame.pack(fill=tk.X, pady=(0, 10))
+        
+        selectButton = ttk.Button(buttonFrame, text="📁 Select Files", command=self.selectFiles, width=20)
+        selectButton.pack(side=tk.LEFT, padx=(0, 10))
+        
+        clearButton = ttk.Button(buttonFrame, text="🗑️ Clear All", command=self.clearFiles, width=15)
+        clearButton.pack(side=tk.LEFT)
+        
+        if DND_AVAILABLE:
+            dropLabel = ttk.Label(fileSelectionFrame, text="💡 Tip: Drag & drop .txt files here", font=("Segoe UI", 9), foreground="gray")
+            dropLabel.pack(anchor=tk.W, pady=(5, 10))
+        
+        filesLabel = ttk.Label(fileSelectionFrame, text="Selected Files:", font=("Segoe UI", 11, "bold"))
+        filesLabel.pack(anchor=tk.W, pady=(0, 8))
+        
+        filesFrame = ttk.Frame(fileSelectionFrame)
+        filesFrame.pack(fill=tk.X)
+        
+        scrollbar = ttk.Scrollbar(filesFrame)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        self.filesListbox = tk.Listbox(filesFrame, yscrollcommand=scrollbar.set, bg="#2b2b2b", fg="#e0e0e0", 
+                                       selectbackground="#0078d4", selectforeground="white", 
+                                       font=("Segoe UI", 10), relief=tk.FLAT, borderwidth=2,
+                                       highlightthickness=1, highlightbackground="#404040", height=4)
+        self.filesListbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.config(command=self.filesListbox.yview)
+        
+        actionFrame = ttk.Frame(mainFrame)
+        actionFrame.pack(fill=tk.X, pady=(0, 15))
+        
+        # Headless mode checkbox
+        optionsFrame = ttk.Frame(actionFrame)
+        optionsFrame.pack(side=tk.LEFT, padx=(0, 15))
+        
+        headlessCheckbox = ttk.Checkbutton(
+            optionsFrame, 
+            text="Headless Mode", 
+            variable=self.headlessMode,
+            onvalue=True, 
+            offvalue=False
+        )
+        headlessCheckbox.pack(side=tk.LEFT)
+        
+        # Help text for headless mode
+        headlessHelp = ttk.Label(
+            optionsFrame, 
+            text="(Run browser in background)", 
+            font=("Segoe UI", 8),
+            foreground="gray"
+        )
+        headlessHelp.pack(side=tk.LEFT, padx=(5, 0))
+        
+        self.processButton = ttk.Button(actionFrame, text="🚀 Process Files", command=self.processFiles, state=tk.DISABLED, width=25)
+        self.processButton.pack(side=tk.LEFT, padx=(0, 10))
+        
+        self.extractButton = ttk.Button(actionFrame, text="📊 Extract Data Only", command=self.extractDataOnly, state=tk.DISABLED, width=25)
+        self.extractButton.pack(side=tk.LEFT)
+        
+        logFrame = ttk.LabelFrame(mainFrame, text="Activity Log", padding="12")
+        logFrame.pack(fill=tk.BOTH, expand=True)
+        
+        logToolbar = ttk.Frame(logFrame)
+        logToolbar.pack(fill=tk.X, pady=(0, 8))
+        
+        clearLogButton = ttk.Button(logToolbar, text="Clear Log", command=self.clearLog, width=12)
+        clearLogButton.pack(side=tk.RIGHT)
+        
+        logScrollbar = ttk.Scrollbar(logFrame)
+        logScrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        self.logText = tk.Text(logFrame, yscrollcommand=logScrollbar.set, bg="#1e1e1e", fg="#d4d4d4", 
+                              wrap=tk.WORD, font=("Consolas", 9), relief=tk.FLAT, borderwidth=2,
+                              highlightthickness=1, highlightbackground="#404040", padx=8, pady=8)
+        self.logText.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        logScrollbar.config(command=self.logText.yview)
+        
+        self.log("✓ Application started. Ready to select files.")
     
-    with open(SAMPLE_PATH, 'r', encoding='utf-8') as f:
-        sample = json.load(f)
+    def setupDragAndDrop(self):
+        if DND_AVAILABLE:
+            self.filesListbox.drop_target_register(DND_FILES)
+            self.filesListbox.dnd_bind('<<Drop>>', self.onDrop)
+            self.log("✓ Drag & drop enabled. Drop files here!")
+        else:
+            self.log("ℹ Note: Install tkinterdnd2 for drag & drop support")
     
-    return schema, sample
-
-def pdf_page_to_image(pdf_path, page_num=0, dpi=300):
-    """Convert PDF page to image bytes"""
-    doc = pymupdf.open(pdf_path)
-    page = doc[page_num]
+    def clearLog(self):
+        self.logText.delete(1.0, tk.END)
+        self.log("Log cleared.")
     
-    # Convert page to image
-    pix = page.get_pixmap(matrix=pymupdf.Matrix(dpi/72, dpi/72))
-    img_bytes = pix.tobytes("png")
+    def onDrop(self, event):
+        files = self.root.tk.splitlist(event.data)
+        added = 0
+        skipped = 0
+        
+        for file in files:
+            if file.endswith('.txt') and os.path.isfile(file):
+                if file not in self.selectedFiles:
+                    self.selectedFiles.append(file)
+                    filename = os.path.basename(file)
+                    self.filesListbox.insert(tk.END, filename)
+                    self.log(f"✓ Dropped: {filename}")
+                    added += 1
+            else:
+                filename = os.path.basename(file) if file else "unknown"
+                self.log(f"⚠ Skipped: {filename} (not a .txt file)")
+                skipped += 1
+        
+        if added > 0:
+            self.log(f"✓ Added {added} file(s) via drag & drop")
+        if skipped > 0:
+            self.log(f"⚠ Skipped {skipped} file(s)")
+        
+        self.updateButtonStates()
     
-    doc.close()
-    return img_bytes
-
-def create_extraction_prompt(schema, sample):
-    """Create a detailed prompt for extracting CMS-1500 form data"""
+    def setupLogRedirect(self):
+        self.textRedirector = TextRedirector(self.logText)
     
-    # Extract key structure from sample
-    sample_str = json.dumps(sample, indent=2)
+    def startLogCapture(self):
+        sys.stdout = self.textRedirector
+        sys.stderr = self.textRedirector
     
-    prompt = f"""You are a JSON extraction tool. Extract all data from this CMS-1500 Health Insurance Claim Form.
-
-IMPORTANT: Your response must be ONLY valid JSON. No markdown formatting, no explanations, no bullet points, no text before or after the JSON.
-
-Required JSON structure (copy this exact format):
-
-{sample_str}
-
-EXTRACTION RULES:
-1. Extract ALL fields visible on the form
-2. Dates: Use format MM/DD/YYYY (e.g., "01/20/2026")
-3. Diagnosis codes: Extract letter pointer (A-L) and code value
-4. Service lines: Extract ALL service lines (there may be multiple)
-5. Charges: Extract as numbers (e.g., 435.00 not "$435.00")
-6. Empty fields: Use "" for strings, [] for arrays
-7. Patient ID: Extract Member ID from field 1a
-8. Names: Split into last_name, first_name, middle_initial, full_name
-9. Dates: Include formatted, month, day, year components
-10. Diagnosis: Array with pointer (A-L) and code value
-11. Service lines: Array with all service line items
-
-CRITICAL OUTPUT REQUIREMENT:
-- Output ONLY the JSON object
-- Start with {{ and end with }}
-- No markdown (no **, no *, no ```)
-- No explanations or descriptions
-- Just the raw JSON matching the structure above
-
-Begin your response with {{ and end with }}. Nothing else."""
-    
-    return prompt
-
-def extract_with_ollama(pdf_path, model_name="llama3.2-vision:11b"):
-    """
-    Extract structured data from PDF using Ollama vision model
-    Saves raw output to .txt file (no JSON parsing)
-    
-    Args:
-        pdf_path: Path to PDF file
-        model_name: Ollama model name (default: llama3.2-vision:11b)
-    
-    Returns:
-        Dictionary with output file path and response length
-    """
-    print(f"[INFO] Processing PDF: {pdf_path}")
-    print(f"[INFO] Using model: {model_name}")
-    
-    # Load schema and sample for prompt
-    schema, sample = load_schema_and_sample()
-    
-    # Convert first page to image
-    print("[INFO] Converting PDF page to image...")
-    img_bytes = pdf_page_to_image(pdf_path, page_num=0, dpi=300)
-    
-    # Create extraction prompt
-    prompt = create_extraction_prompt(schema, sample)
-    
-    print("[INFO] Sending to Ollama for extraction...")
-    print("[INFO] This may take a while (30-60 seconds)...")
-    
-    try:
-        # Call Ollama with image
-        # Use system message to enforce JSON output
-        response = ollama.chat(
-            model=model_name,
-            messages=[
-                {
-                    "role": "system",
-                    "content": "You are a JSON extraction tool. Always respond with ONLY valid JSON. No markdown, no explanations, no formatting. Just pure JSON."
-                },
-                {
-                    "role": "user",
-                    "content": prompt,
-                    "images": [img_bytes]
-                }
-            ],
-            options={
-                "temperature": 0.1,  # Low temperature for more consistent extraction
-                "num_predict": 50000,  # Very long response limit for complete JSON (allows up to 50k tokens)
-            }
+    def stopLogCapture(self):
+        sys.stdout = self.originalStdout
+        sys.stderr = self.originalStderr
+        
+    def selectFiles(self):
+        files = filedialog.askopenfilenames(
+            title="Select Claim Text Files",
+            filetypes=[("Text files", "*.txt"), ("All files", "*.*")]
         )
         
-        # Extract raw response from Ollama
-        response_text = response['message']['content']
+        if files:
+            for file in files:
+                if file not in self.selectedFiles:
+                    self.selectedFiles.append(file)
+                    filename = os.path.basename(file)
+                    self.filesListbox.insert(tk.END, filename)
+                    self.log(f"✓ Added: {filename}")
+            
+            self.updateButtonStates()
+            self.log(f"Total files selected: {len(self.selectedFiles)}")
+    
+    def clearFiles(self):
+        count = len(self.selectedFiles)
+        self.selectedFiles.clear()
+        self.filesListbox.delete(0, tk.END)
+        self.log(f"🗑️ Cleared {count} file(s).")
+        self.updateButtonStates()
+    
+    def updateButtonStates(self):
+        if len(self.selectedFiles) > 0:
+            self.processButton.config(state=tk.NORMAL)
+            self.extractButton.config(state=tk.NORMAL)
+        else:
+            self.processButton.config(state=tk.DISABLED)
+            self.extractButton.config(state=tk.DISABLED)
+    
+    def log(self, message):
+        self.logText.insert(tk.END, f"{message}\n")
+        self.logText.see(tk.END)
+        self.root.update_idletasks()
+    
+    def extractDataOnly(self):
+        if not self.selectedFiles:
+            self.log("No files selected.")
+            return
         
-        # Save raw response to text file (no JSON parsing)
-        output_txt_path = Path(pdf_path).stem + "_extracted.txt"
-        with open(output_txt_path, 'w', encoding='utf-8') as f:
-            f.write("=" * 80 + "\n")
-            f.write("RAW EXTRACTION OUTPUT FROM OLLAMA\n")
-            f.write("=" * 80 + "\n\n")
-            f.write(f"PDF File: {pdf_path}\n")
-            f.write(f"Model: {model_name}\n")
-            f.write(f"Extraction Date: {datetime.now().isoformat()}\n")
-            f.write(f"Response Length: {len(response_text)} characters\n")
-            f.write("=" * 80 + "\n\n")
-            f.write("RAW JSON OUTPUT:\n")
-            f.write("-" * 80 + "\n")
-            f.write(response_text)
-            f.write("\n" + "-" * 80 + "\n")
+        self.log("=" * 60)
+        self.log("Starting data extraction...")
         
-        print(f"[SUCCESS] Raw extraction output saved to: {output_txt_path}")
-        print(f"[INFO] Response length: {len(response_text)} characters")
-        print(f"[INFO] Response lines: {len(response_text.splitlines())} lines")
+        def extractInThread():
+            try:
+                self.startLogCapture()
+                
+                for idx, file in enumerate(self.selectedFiles, 1):
+                    print(f"\n[{idx}/{len(self.selectedFiles)}] Extracting from: {file}")
+                    try:
+                        jsonOutput = extractClaimData(file)
+                        if jsonOutput:
+                            data = json.loads(jsonOutput)
+                            print(f"✓ Successfully extracted data")
+                            print(f"  - Name: {data.get('name', 'N/A')}")
+                            print(f"  - ID: {data.get('id', 'N/A')}")
+                            print(f"  - Procedures: {len(data.get('procedures', []))}")
+                            print(f"  - Signature Date: {data.get('signatureDate', 'N/A')}")
+                        else:
+                            print(f"✗ Failed to extract data from {file}")
+                    except Exception as e:
+                        print(f"✗ Error extracting {file}: {str(e)}")
+                
+                print(f"\n{'='*60}")
+                print("Extraction complete!")
+                
+            except Exception as e:
+                import traceback
+                print(f"[ERROR] Error during extraction: {e}")
+                traceback.print_exc()
+            finally:
+                self.stopLogCapture()
         
-        # Show preview
-        preview_lines = response_text.split('\n')[:30]
-        print("\n[INFO] Response preview (first 30 lines):")
-        print("-" * 60)
-        for i, line in enumerate(preview_lines, 1):
-            print(f"{i:3d} | {line}")
-        if len(response_text.split('\n')) > 30:
-            print(f"... ({len(response_text.split('\n')) - 30} more lines)")
-        print("-" * 60)
+        thread = threading.Thread(target=extractInThread, daemon=True)
+        thread.start()
+    
+    def processFiles(self):
+        if not self.selectedFiles:
+            self.log("No files selected.")
+            return
         
-        return {
-            "raw_output_file": str(output_txt_path),
-            "response_length": len(response_text),
-            "response_lines": len(response_text.splitlines())
-        }
+        # Get headless mode setting from checkbox
+        headlessMode = self.headlessMode.get()
         
-    except Exception as e:
-        print(f"[ERROR] Extraction failed: {e}")
-        import traceback
-        traceback.print_exc()
-        raise
+        self.log("=" * 60)
+        self.log("Starting file processing...")
+        if headlessMode:
+            self.log("Mode: HEADLESS (browser runs in background)")
+        else:
+            self.log("Mode: VISIBLE (browser window will be shown)")
+        self.log("=" * 60)
+        
+        def processInThread():
+            try:
+                self.startLogCapture()
+                from app import processSingleFile, createChromeSession, maximizeWindow
+                
+                # Use headless mode from checkbox
+                driver = createChromeSession('uttu', headless=headlessMode)
+                if not headlessMode:
+                    maximizeWindow(driver)
+                
+                totalFiles = len(self.selectedFiles)
+                successful = 0
+                failed = 0
+                
+                for idx, file in enumerate(self.selectedFiles, 1):
+                    if processSingleFile(driver, file):
+                        successful += 1
+                    else:
+                        failed += 1
+                
+                print(f"\n{'='*60}")
+                print(f"[INFO] Processing complete!")
+                print(f"[INFO] Successful: {successful}/{totalFiles}")
+                print(f"[INFO] Failed: {failed}/{totalFiles}")
+                print(f"{'='*60}")
+                
+            except Exception as e:
+                import traceback
+                print(f"[ERROR] Error during processing: {e}")
+                traceback.print_exc()
+            finally:
+                self.stopLogCapture()
+        
+        thread = threading.Thread(target=processInThread, daemon=True)
+        thread.start()
 
 def main():
-    """Main function to test PDF extraction"""
-    import sys
-    
-    # Get PDF path from command line or use default
-    if len(sys.argv) > 1:
-        pdf_path = sys.argv[1]
+    if DND_AVAILABLE:
+        root = TkinterDnD.Tk()
     else:
-        # Try common test files
-        test_files = ["example.pdf", "ex2.pdf", "ex3.pdf"]
-        pdf_path = None
-        for test_file in test_files:
-            if Path(test_file).exists():
-                pdf_path = test_file
-                break
-        
-        if not pdf_path:
-            print("[ERROR] No PDF file specified and no test files found")
-            print("Usage: python test.py <pdf_path>")
-            print("Or place example.pdf, ex2.pdf, or ex3.pdf in current directory")
-            return
-    
-    if not Path(pdf_path).exists():
-        print(f"[ERROR] PDF file not found: {pdf_path}")
-        return
-    
-    # Model name (can be changed)
-    model_name = "llama3.2-vision:11b"  # or "llava:latest", "llava:7b", "bakllava:latest"
-    
-    if len(sys.argv) > 2:
-        model_name = sys.argv[2]
-    
-    print("=" * 60)
-    print("CMS-1500 Form Extraction using Ollama Vision")
-    print("=" * 60)
-    print(f"PDF: {pdf_path}")
-    print(f"Model: {model_name}")
-    print("=" * 60)
-    print()
-    
-    try:
-        # Extract data (saves to .txt file)
-        result = extract_with_ollama(pdf_path, model_name)
-        
-        print("\n" + "=" * 60)
-        print("EXTRACTION COMPLETE")
-        print("=" * 60)
-        print(f"Output saved to: {result['raw_output_file']}")
-        print(f"Response length: {result['response_length']} characters")
-        print(f"Response lines: {result['response_lines']} lines")
-        print("\n[INFO] Raw output saved to .txt file")
-        print("[INFO] You can now review and manually parse the JSON if needed")
-        print("=" * 60)
-        
-    except Exception as e:
-        print(f"\n[ERROR] Extraction failed: {e}")
-        import traceback
-        traceback.print_exc()
+        root = tk.Tk()
+    app = ClaimProcessorUI(root)
+    root.mainloop()
 
 if __name__ == "__main__":
     main()

@@ -8,3 +8,6 @@ flask
 flask-cors
 selenium
 ollama
+python-dotenv
+sv-ttk
+tkinterdnd2

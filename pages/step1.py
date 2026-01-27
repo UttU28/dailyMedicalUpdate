@@ -18,7 +18,7 @@ def clickCreateClaimButton(driver):
         )
         createClaimButton.click()
         print("[INFO] Clicked Create Claim button")
-        time.sleep(2)
+        time.sleep(0.5)
         return True
     except Exception as e:
         print(f"[ERROR] Failed to click Create Claim button: {e}")
@@ -51,16 +51,13 @@ def fillMemberSearchForm(driver, memberId, birthdate):
         dobInput.send_keys(birthdate)
         print(f"[INFO] Entered Birthdate: {birthdate}")
         
-        # Wait 1 second before clicking Find button
-        time.sleep(1)
-        
         # Click Find button
         findButton = wait.until(
             EC.element_to_be_clickable((By.CSS_SELECTOR, "form[action='/careconnect/eligibility/results'] button[type='submit']"))
         )
         findButton.click()
         print("[INFO] Clicked Find button")
-        time.sleep(2)
+        time.sleep(0.5)
         return True
     except Exception as e:
         print(f"[ERROR] Failed to fill member search form: {e}")
@@ -79,7 +76,7 @@ def clickProfessionalClaimButton(driver):
         print("[INFO] Claim type selection page detected")
         
         # Wait a bit more for JavaScript to finish rendering
-        time.sleep(2)
+        time.sleep(0.5)
         
         # Wait for the main content section to be visible
         wait.until(
@@ -117,12 +114,12 @@ def clickProfessionalClaimButton(driver):
         
         # Scroll into view if needed
         driver.execute_script("arguments[0].scrollIntoView(true);", professionalClaimButton)
-        time.sleep(1)
+        time.sleep(0.5)
         
         # Click the button
         professionalClaimButton.click()
         print("[INFO] Clicked Professional Claim button")
-        time.sleep(2)
+        time.sleep(0.5)
         return True
     except Exception as e:
         print(f"[ERROR] Failed to click Professional Claim button: {e}")
@@ -154,7 +151,7 @@ def executeStep1(driver, insuredId, insuredDob):
         claimsUrl = "https://provider.superiorhealthplan.com/careconnect/claims/viewClaimsHome"
         print(f"[INFO] Opening {claimsUrl}...")
         driver.get(claimsUrl)
-        time.sleep(3)
+        time.sleep(0.5)
         print(f"[INFO] Current URL: {driver.current_url}")
         
         # Check if we were redirected to login page
@@ -164,7 +161,7 @@ def executeStep1(driver, insuredId, insuredDob):
             # Navigate back to claims page after login
             print(f"[INFO] Navigating back to {claimsUrl}...")
             driver.get(claimsUrl)
-            time.sleep(3)
+            time.sleep(0.5)
             print(f"[INFO] Current URL after login: {driver.current_url}")
         
         # Click Create Claim button
@@ -176,7 +173,7 @@ def executeStep1(driver, insuredId, insuredDob):
                 # Navigate back to claims page after login
                 print(f"[INFO] Navigating back to {claimsUrl}...")
                 driver.get(claimsUrl)
-                time.sleep(3)
+                time.sleep(0.5)
                 # Retry clicking Create Claim button
                 if not clickCreateClaimButton(driver):
                     raise Exception("Failed to click Create Claim button after login")
@@ -191,7 +188,7 @@ def executeStep1(driver, insuredId, insuredDob):
         
         # Wait for navigation to complete and page to load
         print("[INFO] Waiting for page navigation...")
-        time.sleep(5)
+        time.sleep(0.5)
         
         # Wait for page to be ready - check if we're on the right page
         print(f"[INFO] Current URL: {driver.current_url}")
@@ -205,7 +202,7 @@ def executeStep1(driver, insuredId, insuredDob):
         except Exception as e:
             print(f"[INFO] Waiting for page elements... ({e})")
             # Give it more time
-            time.sleep(3)
+            time.sleep(0.5)
         
         # Click Professional Claim button
         if not clickProfessionalClaimButton(driver):

@@ -25,7 +25,7 @@ def waitForFormToLoad(driver):
         )
         
         # Wait a bit more for JavaScript to finish rendering
-        time.sleep(2)
+        time.sleep(0.5)
         print("[INFO] General Info form is ready")
         return True
     except Exception as e:
@@ -61,11 +61,8 @@ def fillStatementDates(driver, startDate, endDate):
         startDateInput.clear()
         time.sleep(0.2)
         startDateInput.send_keys(startDate)
-        time.sleep(1)  # Extra sleep for date field
-        print(f"[INFO] Entered Statement Start Date: {startDate}")
-        
-        # Wait before filling next field
         time.sleep(0.2)
+        print(f"[INFO] Entered Statement Start Date: {startDate}")
         
         # Fill End Date
         endDateInput = wait.until(
@@ -74,7 +71,7 @@ def fillStatementDates(driver, startDate, endDate):
         endDateInput.clear()
         time.sleep(0.2)
         endDateInput.send_keys(endDate)
-        time.sleep(1)  # Extra sleep for date field
+        time.sleep(0.2)
         print(f"[INFO] Entered Statement End Date: {endDate}")
         
         return True
@@ -93,11 +90,8 @@ def fillCurrentIllness(driver, illnessDate):
         )
         select = Select(illnessDropdown)
         select.select_by_value("431")  # Current Illness or Injury
-        time.sleep(1)  # Wait for dropdown selection to process
+        time.sleep(0.5)  # Wait for dropdown selection to process
         print("[INFO] Selected 'Current Illness or Injury' from dropdown")
-        
-        # Wait before filling date field
-        time.sleep(0.2)
         
         # Fill the illness date
         illnessDateInput = wait.until(
@@ -106,7 +100,7 @@ def fillCurrentIllness(driver, illnessDate):
         illnessDateInput.clear()
         time.sleep(0.2)
         illnessDateInput.send_keys(illnessDate)
-        time.sleep(1)  # Extra sleep for date field
+        time.sleep(0.2)
         print(f"[INFO] Entered Current Illness Date: {illnessDate}")
         
         return True
@@ -141,11 +135,11 @@ def clickNextButton(driver):
         
         # Scroll into view
         driver.execute_script("arguments[0].scrollIntoView(true);", nextButton)
-        time.sleep(1)
+        time.sleep(0.5)
         
         nextButton.click()
         print("[INFO] Clicked Next button")
-        time.sleep(3)
+        time.sleep(0.5)
         return True
     except Exception as e:
         print(f"[ERROR] Failed to click Next button: {e}")
@@ -253,22 +247,13 @@ def fillGeneralInfoForm(driver, patientAccountNumber, providerSignatureDate, cli
     if not fillPatientAccountNumber(driver, patientAccountNumber):
         return False
     
-    # Wait between fields
-    time.sleep(0.3)
-    
     # Fill Statement Dates (start and end with same date)
     if not fillStatementDates(driver, providerSignatureDate, providerSignatureDate):
         return False
     
-    # Wait between fields
-    time.sleep(0.3)
-    
     # Fill Current Illness
     if not fillCurrentIllness(driver, providerSignatureDate):
         return False
-    
-    # Wait between fields
-    time.sleep(0.3)
     
     # Fill CLIA Number
     if not fillCLIANumber(driver, cliaNumber):
@@ -301,7 +286,7 @@ def executeStep2(driver, patientAccountNumber, providerSignatureDate, cliaNumber
             if not waitForFormToLoad(driver):
                 if retryCount < maxRetries:
                     print("[WARNING] Form did not load, retrying...")
-                    time.sleep(2)
+                    time.sleep(0.5)
                     continue
                 else:
                     raise Exception("Form did not load properly after retries")
@@ -310,38 +295,32 @@ def executeStep2(driver, patientAccountNumber, providerSignatureDate, cliaNumber
             if not fillGeneralInfoForm(driver, patientAccountNumber, providerSignatureDate, cliaNumber):
                 if retryCount < maxRetries:
                     print("[WARNING] Failed to fill form, retrying...")
-                    time.sleep(2)
+                    time.sleep(0.5)
                     continue
                 else:
                     raise Exception("Failed to fill form after retries")
-            
-            # Wait for fields to be processed
-            time.sleep(2)
             
             # Validate all fields are filled correctly
             isValid, validationErrors = validateGeneralInfoForm(driver, patientAccountNumber, providerSignatureDate, cliaNumber)
             if not isValid:
                 if retryCount < maxRetries:
                     print(f"[WARNING] Validation failed with {len(validationErrors)} error(s), retrying...")
-                    time.sleep(2)
+                    time.sleep(0.5)
                     continue
                 else:
                     raise Exception(f"Validation failed after retries: {validationErrors}")
-            
-            # Wait a moment before clicking Next
-            time.sleep(2)
             
             # Click Next button
             if not clickNextButton(driver):
                 if retryCount < maxRetries:
                     print("[WARNING] Failed to click Next button, retrying...")
-                    time.sleep(2)
+                    time.sleep(0.5)
                     continue
                 else:
                     raise Exception("Failed to click Next button after retries")
             
             # Wait for page to potentially change
-            time.sleep(3)
+            time.sleep(0.5)
             
             # Check if we successfully moved to next page
             if not isOnGeneralInfoPage(driver):
@@ -352,7 +331,7 @@ def executeStep2(driver, patientAccountNumber, providerSignatureDate, cliaNumber
                 # Still on General Info page, need to retry
                 if retryCount < maxRetries:
                     print("[WARNING] Still on General Info page, form may not have submitted. Retrying...")
-                    time.sleep(2)
+                    time.sleep(0.5)
                     continue
                 else:
                     raise Exception("Still on General Info page after all retries")

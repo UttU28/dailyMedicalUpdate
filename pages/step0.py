@@ -54,9 +54,9 @@ def fillEmailAndContinue(driver, email):
         
         # Clear and fill email
         emailInput.clear()
-        time.sleep(0.3)
+        time.sleep(0.2)
         emailInput.send_keys(email)
-        time.sleep(0.3)
+        time.sleep(0.2)
         print(f"[INFO] Entered email: {email}")
         
         # Wait for Continue button
@@ -66,12 +66,12 @@ def fillEmailAndContinue(driver, email):
         
         # Scroll into view
         driver.execute_script("arguments[0].scrollIntoView(true);", continueButton)
-        time.sleep(1)
+        time.sleep(0.5)
         
         # Click Continue button
         continueButton.click()
         print("[INFO] Clicked Continue button")
-        time.sleep(3)
+        time.sleep(0.5)
         
         return True
     except Exception as e:
@@ -86,7 +86,7 @@ def fillPasswordAndLogin(driver, password):
         # Wait for password page to load
         if not isPasswordPage(driver):
             print("[WARNING] Password page not detected, waiting...")
-            time.sleep(2)
+            time.sleep(0.5)
         
         # Wait for password input field
         passwordInput = wait.until(
@@ -95,7 +95,7 @@ def fillPasswordAndLogin(driver, password):
         
         # Clear any existing password value
         passwordInput.clear()
-        time.sleep(0.3)
+        time.sleep(0.2)
         
         # Double-check: select all and delete to ensure it's completely cleared
         passwordInput.send_keys(Keys.CONTROL + "a")
@@ -105,7 +105,7 @@ def fillPasswordAndLogin(driver, password):
         
         # Fill password
         passwordInput.send_keys(password)
-        time.sleep(0.3)
+        time.sleep(0.2)
         print("[INFO] Entered password")
         
         # Wait for Login button
@@ -115,12 +115,12 @@ def fillPasswordAndLogin(driver, password):
         
         # Scroll into view
         driver.execute_script("arguments[0].scrollIntoView(true);", loginButton)
-        time.sleep(1)
+        time.sleep(0.5)
         
         # Click Login button
         loginButton.click()
         print("[INFO] Clicked Login button")
-        time.sleep(5)  # Wait for login to complete and redirect
+        time.sleep(0.5)  # Wait for login to complete and redirect
         
         return True
     except Exception as e:
@@ -169,7 +169,7 @@ def executeStep0(driver):
             raise Exception("Failed to fill password and login")
         
         # Wait for redirect after login
-        time.sleep(3)
+        time.sleep(0.5)
         print(f"[INFO] Login completed. Current URL: {driver.current_url}")
         
         return True
