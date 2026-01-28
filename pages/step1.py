@@ -24,6 +24,51 @@ def clickCreateClaimButton(driver):
         print(f"[ERROR] Failed to click Create Claim button: {e}")
         return False
 
+def validateMemberSearchForm(driver, expectedMemberId, expectedBirthdate):
+    """Validate that Member ID and Birthdate are filled correctly before clicking Find"""
+    errors = []
+    try:
+        wait = WebDriverWait(driver, 5)
+        
+        # Validate Member ID
+        memberInput = wait.until(
+            EC.presence_of_element_located((By.NAME, "memberIdOrLastName"))
+        )
+        actualMemberId = memberInput.get_attribute("value") or ""
+        if actualMemberId.strip() != expectedMemberId.strip():
+            errors.append(f"Member ID mismatch: expected '{expectedMemberId}', got '{actualMemberId}'")
+        
+        # Validate Birthdate
+        dobInput = wait.until(
+            EC.presence_of_element_located((By.NAME, "dob"))
+        )
+        actualBirthdate = dobInput.get_attribute("value") or ""
+        if actualBirthdate.strip() != expectedBirthdate.strip():
+            errors.append(f"Birthdate mismatch: expected '{expectedBirthdate}', got '{actualBirthdate}'")
+        
+        # Check for validation errors on page
+        try:
+            errorMessages = driver.find_elements(By.CSS_SELECTOR, ".help-inline, .error, [class*='error'], span[class*='error']")
+            for error in errorMessages:
+                errorText = error.text.strip()
+                if errorText and errorText.lower() not in ['', 'required field']:
+                    if error.is_displayed():
+                        errors.append(f"Form validation error: {errorText}")
+        except:
+            pass
+        
+        if errors:
+            print(f"[VALIDATION] Found {len(errors)} validation error(s):")
+            for error in errors:
+                print(f"  - {error}")
+            return False, errors
+        else:
+            print("[VALIDATION] All member search fields validated successfully")
+            return True, []
+    except Exception as e:
+        errors.append(f"Validation exception: {e}")
+        return False, errors
+
 def fillMemberSearchForm(driver, memberId, birthdate):
     """Fill the member search form and click Find"""
     try:
@@ -40,7 +85,9 @@ def fillMemberSearchForm(driver, memberId, birthdate):
             EC.presence_of_element_located((By.NAME, "memberIdOrLastName"))
         )
         memberInput.clear()
+        time.sleep(0.2)
         memberInput.send_keys(memberId)
+        time.sleep(0.2)
         print(f"[INFO] Entered Member ID: {memberId}")
         
         # Fill Birthdate
@@ -48,8 +95,15 @@ def fillMemberSearchForm(driver, memberId, birthdate):
             EC.presence_of_element_located((By.NAME, "dob"))
         )
         dobInput.clear()
+        time.sleep(0.2)
         dobInput.send_keys(birthdate)
+        time.sleep(0.2)
         print(f"[INFO] Entered Birthdate: {birthdate}")
+        
+        # Validate fields before clicking Find button
+        isValid, validationErrors = validateMemberSearchForm(driver, memberId, birthdate)
+        if not isValid:
+            raise Exception(f"Validation failed before clicking Find button: {validationErrors}")
         
         # Click Find button
         findButton = wait.until(

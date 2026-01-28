@@ -29,7 +29,8 @@ load_dotenv()
 chromeDriverPath = os.getenv('CHROME_DRIVER_PATH')  # Optional: only if you want to use a specific ChromeDriver path
 chromeAppPath = os.getenv('CHROME_APP_PATH')
 scrapingPort = os.getenv('BASE_CHROME_PORT', '9222')
-baseChromeDir = os.getenv('BASE_CHROME_DIR', os.path.join(os.getcwd(), 'chromeData'))
+# Use fixed relative path: current directory + chromeData
+baseChromeDir = os.path.join(os.getcwd(), 'chromeData')
 
 def checkPortInUse(port):
     """Check if a port is already in use"""
@@ -78,9 +79,6 @@ def startChromeProcess(profileName='default_profile', headless=True):
     """Start Chrome as a separate process with remote debugging"""
     if not chromeAppPath:
         raise ValueError("CHROME_APP_PATH environment variable is not set")
-    
-    if not baseChromeDir:
-        raise ValueError("BASE_CHROME_DIR environment variable is not set")
 
     if not os.path.exists(baseChromeDir):
         os.makedirs(baseChromeDir, exist_ok=True)
