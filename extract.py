@@ -144,11 +144,31 @@ def extractDiagnosisCodes(line37, line38, line39):
 
 def extractProcedures(lines42to54):
     procedures = []
+    pendingAdditionalInfo = None
     
     i = 0
     while i < len(lines42to54) and len(procedures) < 6:
         line = lines42to54[i]
+        lineStripped = line.strip()
         
+        # Check if this is an additional info line (doesn't start with date, has content and "0B R1006")
+        if not re.match(r'^\d{8}', lineStripped) and lineStripped and not re.match(r'^\s*$', lineStripped):
+            obPattern = re.search(r'0B\s+R\d+', lineStripped)
+            if obPattern:
+                additionalInfo = lineStripped[:obPattern.start()].strip()
+                if additionalInfo and len(additionalInfo) > 0:
+                    # Extract only the first two parts (space-separated)
+                    parts = additionalInfo.split()
+                    if len(parts) >= 2:
+                        # Take only first two parts and join them
+                        pendingAdditionalInfo = ' '.join(parts[:2])
+                    else:
+                        # If less than 2 parts, use what we have
+                        pendingAdditionalInfo = additionalInfo
+                    i += 1
+                    continue
+        
+        # Check if this is a procedure line (starts with date)
         datePattern = re.match(r'^\s*(\d{8})\s+(\d{8})\s+(\d+)', line)
         if datePattern:
             fromDate = datePattern.group(1)
@@ -196,25 +216,14 @@ def extractProcedures(lines42to54):
                         'modifier': modifier,
                         'diagnosisPointer': diagnosisPointer,
                         'charges': charges,
-                        'additionalInfo': None,
+                        'additionalInfo': pendingAdditionalInfo,  # Use pending additional info
                         'fromDate': fromDate,
                         'toDate': toDate,
                         'placeOfService': placeOfService
                     }
                     
-                    if i + 1 < len(lines42to54):
-                        nextLine = lines42to54[i + 1]
-                        nextLineStripped = nextLine.strip()
-                        if nextLineStripped and not re.match(r'^\d{8}', nextLineStripped) and not re.match(r'^\s*$', nextLineStripped):
-                            obPattern = re.search(r'0B\s+R\d+', nextLineStripped)
-                            if obPattern:
-                                additionalInfo = nextLineStripped[:obPattern.start()].strip()
-                                if additionalInfo and len(additionalInfo) > 0:
-                                    procedure['additionalInfo'] = additionalInfo
-                                    i += 1
-                            elif not re.match(r'^0B\s+R\d+', nextLineStripped) and len(nextLineStripped) > 5:
-                                procedure['additionalInfo'] = nextLineStripped
-                                i += 1
+                    # Clear pending additional info after using it
+                    pendingAdditionalInfo = None
                     
                     procedures.append(procedure)
         

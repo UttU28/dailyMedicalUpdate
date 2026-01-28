@@ -161,6 +161,7 @@ def executeStep4(driver, serviceLinesList):
             diagnosisCodes = serviceLine.get('diagnosisCodes', [])
             charges = serviceLine['charges']
             units = serviceLine['units']
+            ndc = serviceLine.get('ndc', '')
             
             print(f"\n{'='*60}")
             print(f"[INFO] Processing Service Line {index}/{len(serviceLinesList)}")
@@ -169,6 +170,8 @@ def executeStep4(driver, serviceLinesList):
                 print(f"[INFO] Modifier: {modifier}")
             print(f"[INFO] Diagnosis Codes: {diagnosisCodes}")
             print(f"[INFO] Charges: {charges}")
+            if ndc:
+                print(f"[INFO] NDC: {ndc}")
             print(f"{'='*60}")
             
             maxRetries = 3
@@ -188,7 +191,7 @@ def executeStep4(driver, serviceLinesList):
                         raise Exception(f"Service Lines form did not load properly for service line {index}")
                 
                 # Fill all form fields (using step4_5)
-                if not fillSingleServiceLine(driver, serviceDate, placeOfService, procedureCode, modifier, diagnosisCodes, charges, units):
+                if not fillSingleServiceLine(driver, serviceDate, placeOfService, procedureCode, modifier, diagnosisCodes, charges, units, ndc):
                     if retryCount < maxRetries:
                         print("[WARNING] Failed to fill form, retrying...")
                         time.sleep(0.5)

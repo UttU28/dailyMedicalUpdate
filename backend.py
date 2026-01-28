@@ -26,7 +26,7 @@ from pages.step6 import executeStep6
 
 load_dotenv()
 
-chromeDriverPath = os.getenv('CHROME_DRIVER_PATH')
+chromeDriverPath = os.getenv('CHROME_DRIVER_PATH')  # Optional: only if you want to use a specific ChromeDriver path
 chromeAppPath = os.getenv('CHROME_APP_PATH')
 scrapingPort = os.getenv('BASE_CHROME_PORT', '9222')
 baseChromeDir = os.getenv('BASE_CHROME_DIR', os.path.join(os.getcwd(), 'chromeData'))
@@ -131,16 +131,23 @@ def createChromeDriver(options, headless=True):
             options.add_argument('--window-size=1920,1080')
             print(f"[INFO] WebDriver configured for HEADLESS mode")
         
-        if chromeDriverPath:
-            service = Service(executable_path=chromeDriverPath)
+        # Try to use webdriver_manager first (automatic ChromeDriver management)
+        try:
+            from webdriver_manager.chrome import ChromeDriverManager
+            print("[INFO] Using webdriver_manager to get ChromeDriver automatically")
+            service = Service(ChromeDriverManager().install())
             driver = webdriver.Chrome(service=service, options=options)
-        else:
-            try:
-                from webdriver_manager.chrome import ChromeDriverManager
-                service = Service(ChromeDriverManager().install())
+            print("[INFO] ChromeDriver obtained from webdriver_manager")
+        except ImportError:
+            # If webdriver_manager is not installed, try custom path or fallback
+            if chromeDriverPath:
+                print(f"[INFO] Using custom ChromeDriver path: {chromeDriverPath}")
+                service = Service(executable_path=chromeDriverPath)
                 driver = webdriver.Chrome(service=service, options=options)
-            except ImportError:
+            else:
+                print("[INFO] Attempting to use ChromeDriver from system PATH")
                 driver = webdriver.Chrome(options=options)
+        
         return driver
     except Exception as e:
         print(f"[ERROR] Failed to create Chrome driver: {e}")
@@ -228,13 +235,18 @@ def convertExtractedDataToStepFormat(extractedData):
             charges = proc.get('charges', 0)
             chargesFormatted = f"{charges:.2f}" if charges else "0.00"
             
+            # Get additionalInfo and remove spaces for NDC field
+            additionalInfo = proc.get('additionalInfo', '')
+            ndcValue = additionalInfo.replace(' ', '') if additionalInfo else ''
+            
             serviceLineData = {
                 'serviceDate': formattedDate,
                 'procedureCode': proc.get('code', ''),
                 'charges': chargesFormatted,
                 'units': '1',
                 'modifier': proc.get('modifier', ''),
-                'diagnosisCodes': diagnosisCodesForServiceLine
+                'diagnosisCodes': diagnosisCodesForServiceLine,
+                'ndc': ndcValue
             }
             
             step4DataList.append(serviceLineData)
@@ -407,6 +419,15 @@ def processSingleFile(driver, filename):
         
         extractedData = json.loads(jsonOutput)
         print(f"[INFO] Successfully extracted data from {filename}")
+        
+        # Print the extracted JSON in a formatted way
+        print(f"\n{'='*60}")
+        print(f"[INFO] Extracted JSON Data:")
+        print(f"{'='*60}")
+        formattedJson = json.dumps(extractedData, indent=2, ensure_ascii=False)
+        print(formattedJson)
+        print(f"{'='*60}\n")
+        
         print(f"[INFO] Signature Date: {extractedData.get('signatureDate', 'N/A')}")
         print(f"[INFO] Procedures: {len(extractedData.get('procedures', []))}")
         
@@ -457,7 +478,7 @@ def main():
     driver = None
     try:
         # Create Chrome session (once for all files)
-        profileName = 'uttu'
+        profileName = 'iandmydoc'
         headlessMode = True  # Set to False to see browser window
         print(f"[INFO] Creating Chrome session...")
         print(f"[INFO] Headless mode: {headlessMode}")

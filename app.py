@@ -307,7 +307,7 @@ class ClaimProcessorUI:
                 self.startLogCapture()
                 
                 # Use headless mode from checkbox
-                driver = createChromeSession('uttu', headless=headlessMode)
+                driver = createChromeSession('iandmydoc', headless=headlessMode)
                 if not headlessMode:
                     maximizeWindow(driver)
                 

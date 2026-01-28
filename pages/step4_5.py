@@ -308,6 +308,32 @@ def fillUnits(driver, units, unitType="UN"):
         print(f"[ERROR] Failed to fill Units: {e}")
         return False
 
+def fillNDC(driver, ndc):
+    """Fill NDC field (without spaces)"""
+    try:
+        if not ndc or ndc.strip() == '':
+            print("[INFO] No NDC value provided, skipping NDC field")
+            return True
+        
+        wait = WebDriverWait(driver, 10)
+        
+        # Remove all spaces from NDC value
+        ndcValue = ndc.replace(' ', '')
+        
+        ndcInput = wait.until(
+            EC.presence_of_element_located((By.ID, "activeProfessionalServiceLine.ndc"))
+        )
+        ndcInput.clear()
+        time.sleep(0.2)
+        ndcInput.send_keys(ndcValue)
+        time.sleep(0.2)
+        print(f"[INFO] Entered NDC: {ndcValue}")
+        
+        return True
+    except Exception as e:
+        print(f"[ERROR] Failed to fill NDC: {e}")
+        return False
+
 def clickSaveUpdateButton(driver):
     """Click the Save / Update button"""
     try:
@@ -526,7 +552,7 @@ def validateServiceLineFields(driver, serviceDate, placeOfService, procedureCode
         errors.append(f"Validation exception: {e}")
         return False, errors
 
-def fillSingleServiceLine(driver, serviceDate, placeOfService, procedureCode, modifier, diagnosisCodes, charges, units):
+def fillSingleServiceLine(driver, serviceDate, placeOfService, procedureCode, modifier, diagnosisCodes, charges, units, ndc=None):
     """Fill a single Service Line form with all fields"""
     # Fill Dates of Service
     if not fillDatesOfService(driver, serviceDate):
@@ -560,5 +586,10 @@ def fillSingleServiceLine(driver, serviceDate, placeOfService, procedureCode, mo
     # Fill Units
     if not fillUnits(driver, units, "UN"):
         return False
+    
+    # Fill NDC if provided
+    if ndc:
+        if not fillNDC(driver, ndc):
+            return False
     
     return True
