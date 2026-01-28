@@ -54,7 +54,7 @@ class ClaimProcessorUI:
         self.root.minsize(800, 600)
         
         self.selectedFiles = []
-        self.headlessMode = tk.BooleanVar(value=False)  # Default to visible (unchecked)
+        self.headlessMode = tk.BooleanVar(value=True)  # Default to headless (checked)
         self.originalStdout = sys.stdout
         self.originalStderr = sys.stderr
         

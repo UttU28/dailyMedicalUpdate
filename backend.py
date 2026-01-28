@@ -215,10 +215,14 @@ def convertExtractedDataToStepFormat(extractedData):
         # Step 4: service lines
         step4DataList = []
         procedures = extractedData.get('procedures', [])
-        signatureDate = extractedData.get('signatureDate', '')
+        signatureDate = extractedData.get('signatureDate', '')  # Keep for Step 2 (provider signature date)
         
         for proc in procedures:
-            formattedDate = signatureDate if signatureDate else ''
+            # Use date from procedure line if available, otherwise fall back to signature date
+            formattedDate = proc.get('serviceDate', '')
+            if not formattedDate:
+                # Fallback to signature date if procedure doesn't have its own date
+                formattedDate = signatureDate if signatureDate else ''
             
             diagnosisPointer = proc.get('diagnosisPointer', '')
             diagnosisCodesForServiceLine = []

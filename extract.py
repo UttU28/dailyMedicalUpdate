@@ -370,6 +370,14 @@ def formatOutput(result):
             procedure['diagnosisPointer'] = proc['diagnosisPointer']
         if proc.get('additionalInfo'):
             procedure['additionalInfo'] = proc['additionalInfo']
+        # Add date from procedure line (format: MMDDYYYY -> MM/DD/YYYY)
+        if proc.get('fromDate'):
+            try:
+                from datetime import datetime
+                dateObj = datetime.strptime(proc['fromDate'], '%m%d%Y')
+                procedure['serviceDate'] = dateObj.strftime('%m/%d/%Y')
+            except:
+                procedure['serviceDate'] = proc['fromDate']
         proceduresList.append(procedure)
     
     signatureDate = result.get('signatureDate')
