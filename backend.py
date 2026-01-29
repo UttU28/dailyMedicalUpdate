@@ -14,7 +14,7 @@ from datetime import datetime
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
-from dotenv import load_dotenv
+from config import load_env_file
 from extract import extractClaimData
 from pages.step0 import executeStep0
 from pages.step1 import executeStep1
@@ -24,13 +24,43 @@ from pages.step4 import executeStep4
 from pages.step5 import executeStep5
 from pages.step6 import executeStep6
 
-load_dotenv()
+load_env_file()
 
 chromeDriverPath = os.getenv('CHROME_DRIVER_PATH')  # Optional: only if you want to use a specific ChromeDriver path
 chromeAppPath = os.getenv('CHROME_APP_PATH')
 scrapingPort = os.getenv('BASE_CHROME_PORT', '9222')
 # Use fixed relative path: current directory + chromeData
 baseChromeDir = os.path.join(os.getcwd(), 'chromeData')
+
+def findChromePath():
+    """Auto-detect Chrome installation path on Windows"""
+    # Common Chrome installation locations on Windows
+    possiblePaths = [
+        r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+        r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+        os.path.join(os.getenv('LOCALAPPDATA', ''), r"Google\Chrome\Application\chrome.exe"),
+        os.path.join(os.getenv('PROGRAMFILES', ''), r"Google\Chrome\Application\chrome.exe"),
+        os.path.join(os.getenv('PROGRAMFILES(X86)', ''), r"Google\Chrome\Application\chrome.exe"),
+    ]
+    
+    # Check each possible path
+    for path in possiblePaths:
+        if path and os.path.exists(path):
+            print(f"[INFO] Auto-detected Chrome at: {path}")
+            return path
+    
+    # Fallback: Try using 'where' command (Windows)
+    try:
+        result = subprocess.run(['where', 'chrome'], capture_output=True, text=True, timeout=5)
+        if result.returncode == 0 and result.stdout.strip():
+            chromePath = result.stdout.strip().split('\n')[0]
+            if os.path.exists(chromePath):
+                print(f"[INFO] Auto-detected Chrome via 'where' command: {chromePath}")
+                return chromePath
+    except (subprocess.TimeoutExpired, FileNotFoundError, Exception):
+        pass
+    
+    return None
 
 def checkPortInUse(port):
     """Check if a port is already in use"""
@@ -44,19 +74,24 @@ def closeExistingChromeSession(port):
     try:
         import psutil
         port = int(port)
-        for proc in psutil.process_iter(['pid', 'name', 'connections']):
+        for proc in psutil.process_iter(['pid', 'name']):
             try:
                 if proc.info['name'] and 'chrome' in proc.info['name'].lower():
-                    connections = proc.info.get('connections')
-                    if connections:
-                        for conn in connections:
-                            if conn.status == psutil.CONN_LISTEN and conn.laddr.port == port:
-                                print(f"[INFO] Closing existing Chrome process (PID: {proc.info['pid']}) on port {port}")
-                                proc.terminate()
-                                time.sleep(2)
-                                if proc.is_running():
-                                    proc.kill()
-                                return True
+                    # Get connections separately using the process object
+                    try:
+                        connections = proc.connections()
+                        if connections:
+                            for conn in connections:
+                                if conn.status == psutil.CONN_LISTEN and conn.laddr.port == port:
+                                    print(f"[INFO] Closing existing Chrome process (PID: {proc.info['pid']}) on port {port}")
+                                    proc.terminate()
+                                    time.sleep(2)
+                                    if proc.is_running():
+                                        proc.kill()
+                                    return True
+                    except (psutil.AccessDenied, psutil.NoSuchProcess):
+                        # If we can't access connections, try checking by port directly
+                        pass
             except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
                 pass
     except ImportError:
@@ -77,8 +112,16 @@ def closeExistingChromeSession(port):
 
 def startChromeProcess(profileName='default_profile', headless=True):
     """Start Chrome as a separate process with remote debugging"""
-    if not chromeAppPath:
-        raise ValueError("CHROME_APP_PATH environment variable is not set")
+    # Use env var if set, otherwise auto-detect
+    actualChromePath = chromeAppPath
+    if not actualChromePath:
+        actualChromePath = findChromePath()
+        if not actualChromePath:
+            raise ValueError(
+                "Chrome not found. Please either:\n"
+                "1. Set CHROME_APP_PATH in .env file, or\n"
+                "2. Install Google Chrome from https://www.google.com/chrome/"
+            )
 
     if not os.path.exists(baseChromeDir):
         os.makedirs(baseChromeDir, exist_ok=True)
@@ -94,7 +137,7 @@ def startChromeProcess(profileName='default_profile', headless=True):
     userDataDir = os.path.abspath(userDataDir)
     
     chromeArgs = [
-        chromeAppPath,
+        actualChromePath,
         f'--remote-debugging-port={scrapingPort}',
         f'--user-data-dir={userDataDir}',
         '--disable-blink-features=AutomationControlled',

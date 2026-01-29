@@ -9,9 +9,9 @@ import re
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait, Select
 from selenium.webdriver.support import expected_conditions as EC
-from dotenv import load_dotenv
+from config import load_env_file
 
-load_dotenv()
+load_env_file()
 
 def waitForServiceLinesFormToLoad(driver):
     """Wait for the Service Lines form to be fully loaded"""

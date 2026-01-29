@@ -8,7 +8,7 @@ import time
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from dotenv import load_dotenv
+from config import load_env_file
 from pages.step4_5 import (
     waitForServiceLinesFormToLoad,
     fillSingleServiceLine,
@@ -16,7 +16,7 @@ from pages.step4_5 import (
     clickSaveUpdateButton
 )
 
-load_dotenv()
+load_env_file()
 
 def clickNewServiceLineButton(driver):
     """Click the New Service Line button to add another service line"""

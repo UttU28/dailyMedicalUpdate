@@ -9,3 +9,7 @@ chromeData/
 
 __pycache__/
 ogData.json
+
+# PyInstaller
+build/
+dist/
