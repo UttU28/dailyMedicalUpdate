@@ -33,32 +33,78 @@ scrapingPort = os.getenv('BASE_CHROME_PORT', '9222')
 baseChromeDir = os.path.join(os.getcwd(), 'chromeData')
 
 def findChromePath():
-    """Auto-detect Chrome installation path on Windows"""
-    # Common Chrome installation locations on Windows
-    possiblePaths = [
-        r"C:\Program Files\Google\Chrome\Application\chrome.exe",
-        r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
-        os.path.join(os.getenv('LOCALAPPDATA', ''), r"Google\Chrome\Application\chrome.exe"),
-        os.path.join(os.getenv('PROGRAMFILES', ''), r"Google\Chrome\Application\chrome.exe"),
-        os.path.join(os.getenv('PROGRAMFILES(X86)', ''), r"Google\Chrome\Application\chrome.exe"),
-    ]
+    """Auto-detect Chrome installation path on Windows, Mac, or Linux"""
+    import platform
+    
+    system = platform.system()
+    possiblePaths = []
+    
+    if system == "Windows":
+        # Common Chrome installation locations on Windows
+        possiblePaths = [
+            r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+            r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+            os.path.join(os.getenv('LOCALAPPDATA', ''), r"Google\Chrome\Application\chrome.exe"),
+            os.path.join(os.getenv('PROGRAMFILES', ''), r"Google\Chrome\Application\chrome.exe"),
+            os.path.join(os.getenv('PROGRAMFILES(X86)', ''), r"Google\Chrome\Application\chrome.exe"),
+        ]
+        
+        # Fallback: Try using 'where' command (Windows)
+        try:
+            result = subprocess.run(['where', 'chrome'], capture_output=True, text=True, timeout=5)
+            if result.returncode == 0 and result.stdout.strip():
+                chromePath = result.stdout.strip().split('\n')[0]
+                if os.path.exists(chromePath):
+                    print(f"[INFO] Auto-detected Chrome via 'where' command: {chromePath}")
+                    return chromePath
+        except (subprocess.TimeoutExpired, FileNotFoundError, Exception):
+            pass
+    
+    elif system == "Darwin":  # macOS
+        # Common Chrome installation locations on macOS
+        possiblePaths = [
+            "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+            os.path.expanduser("~/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"),
+        ]
+        
+        # Fallback: Try using 'which' command (macOS/Linux)
+        try:
+            result = subprocess.run(['which', 'google-chrome'], capture_output=True, text=True, timeout=5)
+            if result.returncode == 0 and result.stdout.strip():
+                chromePath = result.stdout.strip()
+                if os.path.exists(chromePath):
+                    print(f"[INFO] Auto-detected Chrome via 'which' command: {chromePath}")
+                    return chromePath
+        except (subprocess.TimeoutExpired, FileNotFoundError, Exception):
+            pass
+    
+    elif system == "Linux":
+        # Common Chrome installation locations on Linux
+        possiblePaths = [
+            "/usr/bin/google-chrome",
+            "/usr/bin/google-chrome-stable",
+            "/usr/bin/chromium-browser",
+            "/usr/bin/chromium",
+            os.path.expanduser("~/google-chrome"),
+        ]
+        
+        # Fallback: Try using 'which' command (Linux)
+        try:
+            for cmd in ['google-chrome', 'google-chrome-stable', 'chromium-browser', 'chromium']:
+                result = subprocess.run(['which', cmd], capture_output=True, text=True, timeout=5)
+                if result.returncode == 0 and result.stdout.strip():
+                    chromePath = result.stdout.strip()
+                    if os.path.exists(chromePath):
+                        print(f"[INFO] Auto-detected Chrome via 'which' command: {chromePath}")
+                        return chromePath
+        except (subprocess.TimeoutExpired, FileNotFoundError, Exception):
+            pass
     
     # Check each possible path
     for path in possiblePaths:
         if path and os.path.exists(path):
             print(f"[INFO] Auto-detected Chrome at: {path}")
             return path
-    
-    # Fallback: Try using 'where' command (Windows)
-    try:
-        result = subprocess.run(['where', 'chrome'], capture_output=True, text=True, timeout=5)
-        if result.returncode == 0 and result.stdout.strip():
-            chromePath = result.stdout.strip().split('\n')[0]
-            if os.path.exists(chromePath):
-                print(f"[INFO] Auto-detected Chrome via 'where' command: {chromePath}")
-                return chromePath
-    except (subprocess.TimeoutExpired, FileNotFoundError, Exception):
-        pass
     
     return None
 
